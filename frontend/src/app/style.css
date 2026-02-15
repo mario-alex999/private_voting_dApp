@@ -1,0 +1,4 @@
+body { font-family: Inter, system-ui, sans-serif; background: #0b1020; color: #f5f7ff; margin: 0; }
+.container { max-width: 760px; margin: 2rem auto; display: grid; gap: 0.75rem; padding: 1rem; }
+input, textarea, button { padding: 0.7rem; border-radius: 8px; border: 1px solid #2a3152; }
+button { background: #5979ff; color: white; border: none; cursor: pointer; }
