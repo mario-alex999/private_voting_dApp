@@ -23,7 +23,8 @@
     "start": "cd frontend && npm run dev",
     "install": "cd scripts && bash install_tools.sh $(test -n \"$npm_config_scarb_version\" && echo --scarb $npm_config_scarb_version) $(test -n \"$npm_config_starknet_foundry_version\" && echo --starknet-foundry $npm_config_starknet_foundry_version) $(test -n \"$npm_config_foundry_version\" && echo --foundry $npm_config_foundry_version) $(test -n \"$npm_config_dojo_version\" && echo --dojo $npm_config_dojo_version) && cd ../frontend && npm install --legacy-peer-deps",
     "install-tools": "snfoundryup && foundryup",
-    "build-ui": "cd frontend && npm run build"
+    "build-ui": "cd frontend && npm run build",
+    "dev": "next dev"
   },
   "repository": {
     "type": "git",
