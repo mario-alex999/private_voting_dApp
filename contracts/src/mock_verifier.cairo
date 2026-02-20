@@ -15,7 +15,7 @@ pub mod MockVerifier {
         self.result.write(next);
     }
 
-    #[view]
+    #[external(v0)]
     fn verify_proof(
         self: @ContractState,
         _proof: Array<felt252>,
