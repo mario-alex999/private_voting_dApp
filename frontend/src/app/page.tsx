@@ -3,10 +3,12 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Lock, LayoutDashboard, Menu, X as CloseIcon,
-  Shield,MessageSquare, 
+  Shield,MessageSquare,
   FileText, LogOut, Search, ChevronRight, 
   ChevronLeft, Copy, ChevronDown, CheckCircle2,
-  Plus, ShieldCheck, Zap, Globe, Database, Share2, EyeOff, Clock, Ban, Shield, Calendar, Send, Mail, ArrowUpRight, Fingerprint, UserCheck
+  Plus, ShieldCheck, Zap, Globe, Database, Share2, EyeOff, Clock, Ban, Calendar, Send, Mail, ArrowUpRight, Fingerprint, UserCheck,
+  Twitter,
+  Github
 } from 'lucide-react';
 
 export default function VoteVault() {
