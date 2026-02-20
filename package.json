@@ -41,5 +41,10 @@
   "bugs": {
     "url": "https://github.com/horuslabsio/Starknet-Scaffold/issues"
   },
-  "homepage": "https://github.com/horuslabsio/Starknet-Scaffold#readme"
+  "homepage": "https://github.com/horuslabsio/Starknet-Scaffold#readme",
+  "dependencies": {
+    "@starknet-react/chains": "^5.0.3",
+    "@starknet-react/core": "^5.0.3",
+    "starknet": "^9.2.1"
+  }
 }
