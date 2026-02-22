@@ -1,3 +1,8 @@
 /node_modules
 snfoundry.toml
 .DS_Store
+.scarb-cache/
+.env
+.env.*
+!.env.example
+.env
