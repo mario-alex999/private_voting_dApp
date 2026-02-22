@@ -9,16 +9,12 @@ pub trait IProofVerifier<TContractState> {
 
 #[starknet::contract]
 mod PrivateVoting {
-
     use starknet::ContractAddress;
     use starknet::get_caller_address;
     use starknet::storage::Map;
+
     use super::IProofVerifierDispatcher;
     use super::IProofVerifierDispatcherTrait;
-
-
-
-
 
     #[storage]
     struct Storage {
@@ -31,7 +27,6 @@ mod PrivateVoting {
         vote_commitments: Map<u64, felt252>,
         vote_count: u64,
     }
-
 
     #[event]
     #[derive(Drop, starknet::Event)]
@@ -63,37 +58,23 @@ mod PrivateVoting {
     #[derive(Drop, starknet::Event)]
     struct VotingClosed {}
 
-    
-
     #[constructor]
-    fn constructor(
-        ref self: ContractState,
-        verifier: ContractAddress,
-        admin: ContractAddress,
-    ) {
+    fn constructor(ref self: ContractState, verifier: ContractAddress, admin: ContractAddress) {
         self.verifier.write(verifier);
         self.admin.write(admin);
         self.voting_open.write(false);
         self.vote_count.write(0);
     }
 
-    
-
-    fn assert_admin(ref self: ContractState) {
+    fn assert_admin(self: @ContractState) {
         let caller = get_caller_address();
         let admin = self.admin.read();
         assert(caller == admin, 'NOT_ADMIN');
     }
 
-    
-
     #[external(v0)]
-    fn open_voting(
-        ref self: ContractState,
-        election_id: felt252,
-        merkle_root: felt252,
-    ) {
-        self.admin.read();
+    fn open_voting(ref self: ContractState, election_id: felt252, merkle_root: felt252) {
+        self.assert_admin();
         self.election_id.write(election_id);
         self.merkle_root.write(merkle_root);
         self.voting_open.write(true);
@@ -103,14 +84,14 @@ mod PrivateVoting {
 
     #[external(v0)]
     fn close_voting(ref self: ContractState) {
-        self.admin.read();
+        self.assert_admin();
         self.voting_open.write(false);
         self.emit(VotingClosed {});
     }
 
     #[external(v0)]
     fn update_root(ref self: ContractState, merkle_root: felt252) {
-        self.admin.read();
+        self.assert_admin();
         self.merkle_root.write(merkle_root);
         self.emit(RootUpdated { new_root: merkle_root });
     }
@@ -147,11 +128,7 @@ mod PrivateVoting {
         self.vote_commitments.write(idx, vote_commitment);
         self.vote_count.write(idx + 1);
 
-        self.emit(VoteAccepted {
-            nullifier_hash,
-            vote_commitment,
-            index: idx,
-        });
+        self.emit(VoteAccepted { nullifier_hash, vote_commitment, index: idx });
     }
 
     #[external(v0)]
@@ -167,5 +144,10 @@ mod PrivateVoting {
     #[external(v0)]
     fn get_vote_commitment(self: @ContractState, idx: u64) -> felt252 {
         self.vote_commitments.read(idx)
+    }
+
+    #[external(v0)]
+    fn get_election_config(self: @ContractState) -> (felt252, felt252, bool) {
+        (self.election_id.read(), self.merkle_root.read(), self.voting_open.read())
     }
 }
