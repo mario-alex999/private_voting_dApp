@@ -13,9 +13,47 @@ A private voting dApp where voter identity remains private and votes are accepte
   - verifier integration,
   - nullifier replay protection,
   - admin-controlled election/root lifecycle.
-- **Off-chain utilities** in `scripts/offchain/privateVoting.js` for:
-  - Merkle tree/root and path generation,
-  - witness/public input generation,
-  - local circuit-rule simulation,
-  - local voting-state replay checks.
+- **Backend API** in `backend/` (integrated from the provided `Private voting backend.zip`) for:
+  - voter register/login with JWT,
+  - protected profile fetch,
+  - one-time backend vote-state recording (`voted=true`) linked to tx hash.
+- **Frontend flow** in `frontend/src/app/page.tsx` for:
+  - backend authentication,
+  - wallet connect,
+  - Starknet vote submission (`cast_vote`),
+  - backend vote-state update after successful on-chain tx.
 
+## Run the full dApp
+
+### 1) Start backend
+
+```bash
+cd backend
+npm install
+cp .env.example .env
+npm run dev
+```
+
+### 2) Start frontend
+
+```bash
+cd frontend
+npm install
+cp .env.example .env.local
+npm run dev
+```
+
+Set these frontend variables in `frontend/.env.local`:
+
+- `NEXT_PUBLIC_STARKNET_RPC_URL`
+- `NEXT_PUBLIC_PRIVATE_VOTING_ADDRESS`
+- `NEXT_PUBLIC_BACKEND_URL`
+
+### 3) Smart contract
+
+Build/test from repo root:
+
+```bash
+npm run build-contracts
+npm run test-contracts
+```
