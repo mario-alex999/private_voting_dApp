@@ -5,9 +5,25 @@ export const PRIVATE_VOTING_ABI = [
     inputs: [
       { name: 'nullifier_hash', type: 'core::felt252' },
       { name: 'vote_commitment', type: 'core::felt252' },
-      { name: 'proof', type: 'core::array::Array::<core::felt252>' }
+      { name: 'proof', type: 'core::array::Array::<core::felt252>' },
     ],
     outputs: [],
-    state_mutability: 'external'
-  }
+    state_mutability: 'external',
+  },
+  {
+    type: 'function',
+    name: 'get_vote_count',
+    inputs: [],
+    outputs: [{ type: 'core::integer::u64' }],
+    state_mutability: 'view',
+  },
+  {
+    type: 'function',
+    name: 'get_election_config',
+    inputs: [],
+    outputs: [
+      { type: '(core::felt252, core::felt252, core::bool)' },
+    ],
+    state_mutability: 'view',
+  },
 ] as const;
