@@ -25,7 +25,9 @@
     "install-tools": "snfoundryup && foundryup",
     "build-ui": "cd frontend && npm run build",
     "dev": "next dev",
-    "test": "node --test"
+    "test": "node --test",
+    "start-backend": "cd backend && npm run dev",
+    "start-frontend": "cd frontend && npm run dev"
   },
   "repository": {
     "type": "git",
