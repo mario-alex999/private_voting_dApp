@@ -20,6 +20,12 @@ const networks = [
   },
 ];
 
+type StarknetWindow = Window & {
+  starknet?: {
+    request?: (args: { type: string; params: { chainId: string } }) => Promise<unknown>;
+  };
+};
+
 export default function NetworkSwitcher() {
   const { chain } = useNetwork();
   const [open, setOpen] = React.useState(false);
@@ -29,7 +35,12 @@ export default function NetworkSwitcher() {
 
   const switchNetwork = async (newNetworkId: string, networkLabel: string) => {
     try {
-      await window?.starknet?.request({
+      const starknetWindow = window as StarknetWindow;
+      if (!starknetWindow.starknet?.request) {
+        throw new Error("Wallet does not support network switching");
+      }
+
+      await starknetWindow.starknet.request({
         type: "wallet_switchStarknetChain",
         params: { chainId: newNetworkId },
       });

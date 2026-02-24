@@ -10,6 +10,7 @@ pub trait IProofVerifier<TContractState> {
 #[starknet::contract]
 mod PrivateVoting {
     use starknet::ContractAddress;
+    use starknet::get_block_timestamp;
     use starknet::get_caller_address;
     use starknet::storage::Map;
 
@@ -23,6 +24,9 @@ mod PrivateVoting {
         election_id: felt252,
         merkle_root: felt252,
         voting_open: bool,
+        voting_paused: bool,
+        voting_start_time: u64,
+        voting_end_time: u64,
         used_nullifier: Map<felt252, bool>,
         vote_commitments: Map<u64, felt252>,
         vote_count: u64,
@@ -35,6 +39,8 @@ mod PrivateVoting {
         RootUpdated: RootUpdated,
         VotingOpened: VotingOpened,
         VotingClosed: VotingClosed,
+        VotingPaused: VotingPaused,
+        AdminUpdated: AdminUpdated,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -53,16 +59,32 @@ mod PrivateVoting {
     struct VotingOpened {
         election_id: felt252,
         merkle_root: felt252,
+        start_time: u64,
+        end_time: u64,
     }
 
     #[derive(Drop, starknet::Event)]
     struct VotingClosed {}
+
+    #[derive(Drop, starknet::Event)]
+    struct VotingPaused {
+        paused: bool,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct AdminUpdated {
+        old_admin: ContractAddress,
+        new_admin: ContractAddress,
+    }
 
     #[constructor]
     fn constructor(ref self: ContractState, verifier: ContractAddress, admin: ContractAddress) {
         self.verifier.write(verifier);
         self.admin.write(admin);
         self.voting_open.write(false);
+        self.voting_paused.write(false);
+        self.voting_start_time.write(0);
+        self.voting_end_time.write(0);
         self.vote_count.write(0);
     }
 
@@ -73,27 +95,53 @@ mod PrivateVoting {
     }
 
     #[external(v0)]
-    fn open_voting(ref self: ContractState, election_id: felt252, merkle_root: felt252) {
-        self.assert_admin();
+    fn open_voting(
+        ref self: ContractState,
+        election_id: felt252,
+        merkle_root: felt252,
+        start_time: u64,
+        end_time: u64,
+    ) {
+        assert_admin(@self);
+        assert(start_time <= end_time, 'INVALID_WINDOW');
+
         self.election_id.write(election_id);
         self.merkle_root.write(merkle_root);
+        self.voting_start_time.write(start_time);
+        self.voting_end_time.write(end_time);
         self.voting_open.write(true);
+        self.voting_paused.write(false);
 
-        self.emit(VotingOpened { election_id, merkle_root });
+        self.emit(VotingOpened { election_id, merkle_root, start_time, end_time });
     }
 
     #[external(v0)]
     fn close_voting(ref self: ContractState) {
-        self.assert_admin();
+        assert_admin(@self);
         self.voting_open.write(false);
         self.emit(VotingClosed {});
     }
 
     #[external(v0)]
     fn update_root(ref self: ContractState, merkle_root: felt252) {
-        self.assert_admin();
+        assert_admin(@self);
         self.merkle_root.write(merkle_root);
         self.emit(RootUpdated { new_root: merkle_root });
+    }
+
+    #[external(v0)]
+    fn set_paused(ref self: ContractState, paused: bool) {
+        assert_admin(@self);
+        self.voting_paused.write(paused);
+        self.emit(VotingPaused { paused });
+    }
+
+    #[external(v0)]
+    fn rotate_admin(ref self: ContractState, new_admin: ContractAddress) {
+        assert_admin(@self);
+        let old_admin = self.admin.read();
+        self.admin.write(new_admin);
+        self.emit(AdminUpdated { old_admin, new_admin });
     }
 
     #[external(v0)]
@@ -104,6 +152,10 @@ mod PrivateVoting {
         proof: Array<felt252>,
     ) {
         assert(self.voting_open.read(), 'VOTING_CLOSED');
+        assert(!self.voting_paused.read(), 'VOTING_PAUSED');
+        let now = get_block_timestamp();
+        assert(now >= self.voting_start_time.read(), 'VOTING_NOT_STARTED');
+        assert(now <= self.voting_end_time.read(), 'VOTING_ENDED');
         assert(!self.used_nullifier.read(nullifier_hash), 'NULLIFIER_USED');
 
         let election_id = self.election_id.read();
@@ -149,5 +201,20 @@ mod PrivateVoting {
     #[external(v0)]
     fn get_election_config(self: @ContractState) -> (felt252, felt252, bool) {
         (self.election_id.read(), self.merkle_root.read(), self.voting_open.read())
+    }
+
+    #[external(v0)]
+    fn get_voting_window(self: @ContractState) -> (u64, u64) {
+        (self.voting_start_time.read(), self.voting_end_time.read())
+    }
+
+    #[external(v0)]
+    fn is_paused(self: @ContractState) -> bool {
+        self.voting_paused.read()
+    }
+
+    #[external(v0)]
+    fn get_admin(self: @ContractState) -> ContractAddress {
+        self.admin.read()
     }
 }
