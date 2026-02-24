@@ -26,7 +26,31 @@ A private voting dApp where voter identity remains private and votes are accepte
 npm test
 ```
 
+## Starknet build and test
+
+```bash
+npm run build-contracts
+npm run test-contracts
+npm run sync-addresses
+```
+
+## Frontend production build
+
+```bash
+cd frontend
+npm run build
+```
+
+## Production readiness baseline
+
+- Use a secret manager for `PRIVATE_KEY_SEPOLIA`; never commit real keys.
+- Keep only template values in `.env.example`.
+- Verify deployed contract addresses and class hashes before enabling voting.
+- Rotate compromised keys immediately and redeploy affected accounts/contracts.
+- Run `npm run smoke-onchain` after deployment to validate open/cast/replay-protection on-chain.
+- Voting contract includes admin rotation, pause control, and time-window gating for production operations.
+- Off-chain helper now uses Poseidon hashing; regenerate verifier artifacts when circuit hash logic changes.
+
 ## Notes
 
-- Contract-level tests using `snforge` are prepared by project scripts, but require Starknet Foundry installed in your environment.
-- The off-chain helper currently mirrors the circuit's demonstration hash (`a + b` over a field). For production, replace this with a collision-resistant hash in both Noir and off-chain code (e.g., Poseidon/Pedersen) and regenerate verifier artifacts.
+- Contract-level tests use `snforge` and now cover access control, vote lifecycle, pause/state checks, and nullifier replay protection.

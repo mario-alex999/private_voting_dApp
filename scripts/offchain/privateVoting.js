@@ -1,4 +1,5 @@
 const MOD = (1n << 251n) - 9n;
+const { hash } = require('starknet');
 
 function toField(v) {
   const n = BigInt(v);
@@ -7,7 +8,7 @@ function toField(v) {
 }
 
 function hash2(a, b) {
-  return toField(toField(a) + toField(b));
+  return toField(BigInt(hash.computePoseidonHash(toField(a), toField(b))));
 }
 
 function hash3(a, b, c) {

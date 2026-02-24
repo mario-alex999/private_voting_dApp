@@ -5,8 +5,8 @@
   
   "scripts": {
     "dev": "next dev",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
+    "build": "next build",
+    "preview": "next start",
     "start": "next start",
     "lint": "next lint",
     "format": "prettier --write"

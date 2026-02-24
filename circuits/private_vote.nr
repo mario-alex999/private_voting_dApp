@@ -1,3 +1,5 @@
+use dep::std::hash::pedersen_hash;
+
 // Private voting circuit in Noir.
 // This circuit proves:
 // 1) voter is in eligibility Merkle tree
@@ -9,10 +11,7 @@
 // is enforced on Starknet by storing used nullifiers in contract state.
 
 fn hash2(a: Field, b: Field) -> Field {
-    // Placeholder hash composition for demonstration.
-    // Replace with a concrete Noir hash (Poseidon/Pedersen) supported
-    // by your proving backend and Garaga flow.
-    a + b
+    pedersen_hash([a, b])
 }
 
 fn hash3(a: Field, b: Field, c: Field) -> Field {

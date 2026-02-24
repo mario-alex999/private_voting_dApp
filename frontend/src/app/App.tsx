@@ -1,21 +1,11 @@
-/// <reference types="vite/client" />
-
 import { useMemo, useState } from 'react';
 import { AccountInterface, Contract, RpcProvider } from 'starknet';
 import { PRIVATE_VOTING_ABI } from './abi';
 
-interface ImportMetaEnv {
-  readonly VITE_STARKNET_RPC_URL?: string;
-  readonly VITE_PRIVATE_VOTING_ADDRESS?: string;
-  // add other VITE_... vars here
-}
-
-interface ImportMeta {
-  readonly env: ImportMetaEnv;
-}
-
-const rpcUrl = import.meta.env.VITE_STARKNET_RPC_URL || 'https://starknet-sepolia.public.blastapi.io/rpc/v0_7';
-const contractAddress = import.meta.env.VITE_PRIVATE_VOTING_ADDRESS || '';
+const rpcUrl =
+  process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
+  'https://starknet-sepolia.public.blastapi.io/rpc/v0_7';
+const contractAddress = process.env.NEXT_PUBLIC_PRIVATE_VOTING_ADDRESS || '';
 
 declare global {
   interface Window {
@@ -61,7 +51,7 @@ export function App() {
       return;
     }
     if (!contractAddress) {
-      setStatus('Set VITE_PRIVATE_VOTING_ADDRESS in .env.');
+      setStatus('Set NEXT_PUBLIC_PRIVATE_VOTING_ADDRESS in frontend env.');
       return;
     }
 
