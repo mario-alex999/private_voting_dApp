@@ -26,8 +26,9 @@
     "build-ui": "cd frontend && npm run build",
     "dev": "next dev",
     "test": "node --test",
-    "sync-addresses": "node scripts/syncAddresses.js",
-    "smoke-onchain": "node scripts/onchain/smokeTest.js"
+    "start-backend": "cd backend && npm run dev",
+    "start-frontend": "cd frontend && npm run dev"
+
   },
   "repository": {
     "type": "git",

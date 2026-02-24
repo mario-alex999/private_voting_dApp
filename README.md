@@ -1,3 +1,49 @@
+# Private Voting System (Starknet + Noir + Garaga)
+
+Plug-and-play private voting backend for DAOs, schools, and communities.
+
+## What this provides
+- **Private identity**: voter identity secret stays off-chain.
+- **One person = one vote**: enforced with nullifier replay protection on-chain.
+- **Verified correctness**: proof verifier checks circuit constraints before accepting votes.
+- **Starknet-ready flow**: verifier contract + voting state contract.
+
+## Important implementation note
+The ZK circuit is written in **Noir (not Cairo)**.
+
+- **Noir**: proving logic (membership, nullifier, vote constraints).
+- **Cairo/Starknet**: verifier contract integration and vote state handling.
+
+## Repository layout
+- `circuits/private_vote.nr`: Noir voting circuit.
+- `contracts/src/private_voting.cairo`: Starknet voting contract that consumes verifier results.
+- `docs/research-and-plan.md`: architecture notes and backend implementation guidance.
+
+## High-level workflow
+1. Build Merkle tree of eligible voter commitments.
+2. User generates proof from Noir circuit with private witness.
+3. Garaga-generated verifier contract validates proof on Starknet.
+4. Voting contract:
+   - rejects used `nullifier_hash`,
+   - accepts valid proof,
+   - stores `vote_commitment`.
+
+## Garaga verifier generation (conceptual)
+Use Garaga docs/tooling for your exact command versions.
+
+Typical flow:
+1. Compile Noir circuit and generate proving artifacts.
+2. Export verification key in Garaga-compatible format.
+3. Generate Starknet verifier contract with Garaga.
+4. Deploy verifier contract.
+5. Deploy `PrivateVoting` with verifier address.
+
+## Security checklist
+- Pin versions for Noir/prover/Garaga/Cairo.
+- Domain-separate hashes with `election_id`.
+- Add election timing controls and admin governance.
+- Audit hash functions and proof serialization.
+
 # private_voting_dApp
 
 A private voting dApp where voter identity remains private and votes are accepted only after ZK-proof validation.
@@ -13,44 +59,12 @@ A private voting dApp where voter identity remains private and votes are accepte
   - verifier integration,
   - nullifier replay protection,
   - admin-controlled election/root lifecycle.
-- **Off-chain utilities** in `scripts/offchain/privateVoting.js` for:
-  - Merkle tree/root and path generation,
-  - witness/public input generation,
-  - local circuit-rule simulation,
-  - local voting-state replay checks.
-- **Automated tests** in `test/privateVoting.test.js` for circuit constraints and replay behavior.
-
-## Run tests
-
-```bash
-npm test
-```
-
-## Starknet build and test
-
-```bash
-npm run build-contracts
-npm run test-contracts
-npm run sync-addresses
-```
-
-## Frontend production build
-
-```bash
-cd frontend
-npm run build
-```
-
-## Production readiness baseline
-
-- Use a secret manager for `PRIVATE_KEY_SEPOLIA`; never commit real keys.
-- Keep only template values in `.env.example`.
-- Verify deployed contract addresses and class hashes before enabling voting.
-- Rotate compromised keys immediately and redeploy affected accounts/contracts.
-- Run `npm run smoke-onchain` after deployment to validate open/cast/replay-protection on-chain.
-- Voting contract includes admin rotation, pause control, and time-window gating for production operations.
-- Off-chain helper now uses Poseidon hashing; regenerate verifier artifacts when circuit hash logic changes.
-
-## Notes
-
-- Contract-level tests use `snforge` and now cover access control, vote lifecycle, pause/state checks, and nullifier replay protection.
+- **Backend API** in `backend/` (integrated from the provided `Private voting backend.zip`) for:
+  - voter register/login with JWT,
+  - protected profile fetch,
+  - one-time backend vote-state recording (`voted=true`) linked to tx hash.
+- **Frontend flow** in `frontend/src/app/page.tsx` for:
+  - backend authentication,
+  - wallet connect,
+  - Starknet vote submission (`cast_vote`),
+  - backend vote-state update after successful on-chain tx.
