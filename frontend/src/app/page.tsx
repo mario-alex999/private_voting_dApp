@@ -91,6 +91,7 @@ export default function VoteVault() {
 
   // --- ACTIONS ---
   const handleConnect = () => {
+    if (!selectedWallet) return alert("Please select a Starknet wallet.");
     if (walletPassword.length < 4) return alert("Security Notice: Please enter your 4-digit wallet pin.");
     setIsConnected(true);
     setShowWalletModal(false);
@@ -517,8 +518,8 @@ export default function VoteVault() {
           <div className="relative bg-[#0d1117] border border-white/10 w-full max-w-lg rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-16 animate-in zoom-in-95">
             <h3 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tighter mb-8 md:mb-10 text-center">Unlock Wallet</h3>
             <div className="space-y-6 md:space-y-8">
-              <div className="grid grid-cols-2 gap-3 md:gap-4">
-                {['MetaMask', 'Phantom'].map(w => (
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3 md:gap-4">
+                {['Argent X', 'Braavos', 'Starknet Web Wallet'].map(w => (
                   <button key={w} onClick={() => setSelectedWallet(w)} className={`p-5 md:p-6 rounded-2xl border text-[9px] md:text-[10px] font-black uppercase transition-all ${selectedWallet === w ? 'bg-[#86e8f8] text-black border-[#86e8f8]' : 'bg-white/5 text-slate-500 border-white/5'}`}>{w}</button>
                 ))}
               </div>
