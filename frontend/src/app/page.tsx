@@ -18,6 +18,7 @@ declare global {
       enable: () => Promise<string[]>;
       account: AccountInterface;
       selectedAddress?: string;
+      isConnected?: boolean;
     };
   }
 }

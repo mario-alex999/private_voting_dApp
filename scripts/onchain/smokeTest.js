@@ -42,7 +42,11 @@ async function main() {
   }
 
   const provider = new RpcProvider({ nodeUrl: rpcUrl });
-  const account = new Account(provider, accountAddress, privateKey);
+  const account = new Account({
+    provider,
+    address: accountAddress,
+    signer: privateKey,
+  });
 
   const now = Math.floor(Date.now() / 1000);
   const electionId = BigInt(now);
