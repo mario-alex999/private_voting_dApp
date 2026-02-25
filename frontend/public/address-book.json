@@ -3,13 +3,13 @@
     "id": "pv-mock-verifier",
     "name": "MockVerifier",
     "description": "Verifier contract used by PrivateVoting",
-    "address": "0x63e5e0a2a4280c140f7346bbbc3a5c21b66357579fcd8e7c63cdbed34e74bc4"
+    "address": "0x52760b50b5096e8d1ea59c9407a4deb110e029a23342528e1f6f1d75d13c2e0"
   },
   {
     "id": "pv-private-voting",
     "name": "PrivateVoting",
     "description": "Private voting contract on Starknet",
-    "address": "0x4f19df954b0a7ae9e04c8687f3b205a186c7d99f5eba99eef4990f4e2f54461"
+    "address": "0x10c812acd125f3de08fc3e27fbaf1ad47076d004634017dc1c83e9356803b68"
   },
   {
     "id": "1",
