@@ -43,12 +43,11 @@ export default function VoteVault() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const pinInputRef = React.useRef<HTMLInputElement>(null);
 
   // --- WALLET & AUTH STATE ---
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
-  const [walletPassword, setWalletPassword] = useState('');
+  const [walletAddress, setWalletAddress] = useState('');
   const [isConnected, setIsConnected] = useState(false);
   const [adminAuthInput, setAdminAuthInput] = useState('');
 
@@ -137,7 +136,11 @@ export default function VoteVault() {
 
   // --- ACTIONS ---
   const handleConnect = () => {
-    if (walletPassword.length < 4) return alert("Security Notice: Please enter your 4-digit wallet pin.");
+    const normalizedAddress = walletAddress.trim();
+    if (!/^0x[a-fA-F0-9]{8,}$/.test(normalizedAddress)) {
+      return alert("Please enter a valid wallet address starting with 0x.");
+    }
+    setWalletAddress(normalizedAddress);
     setIsConnected(true);
     setShowWalletModal(false);
     setView('dashboard');
@@ -233,7 +236,7 @@ export default function VoteVault() {
             <button onClick={() => {setView('dashboard'); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase transition-colors ${view === 'dashboard' ? 'bg-white/5 text-white' : 'hover:bg-white/5'}`}><LayoutDashboard size={18}/> Dashboard</button>
             <button className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase hover:bg-white/5"><Shield size={18}/> Audit Logs</button>
           </nav>
-          <button onClick={() => {setIsConnected(false); setView('landing'); setIsSidebarOpen(false);}} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/5 transition-colors"><LogOut size={18}/> Disconnect</button>
+          <button onClick={() => {setIsConnected(false); setWalletAddress(''); setView('landing'); setIsSidebarOpen(false);}} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/5 transition-colors"><LogOut size={18}/> Disconnect</button>
         </div>
       </div>
 
@@ -246,15 +249,15 @@ export default function VoteVault() {
         <div className="relative">
           {isConnected ? (
             <button onClick={() => setIsWalletDropdownOpen(!isWalletDropdownOpen)} className="flex items-center gap-2 md:gap-3 bg-[#0d1117] border border-white/10 px-3 md:px-5 py-2.5 md:py-3 rounded-xl text-[9px] md:text-[10px] font-mono text-white">
-              <span className="hidden xs:inline">0x7a3f...6f7a</span><span className="xs:hidden">0x7a...</span> <ChevronDown size={14} />
+              <span className="hidden xs:inline">{`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}</span><span className="xs:hidden">{`${walletAddress.slice(0, 4)}...`}</span> <ChevronDown size={14} />
             </button>
           ) : (
             <button onClick={() => setShowWalletModal(true)} className="bg-[#86e8f8] text-black px-5 md:px-8 py-2.5 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase">Connect</button>
           )}
           {isWalletDropdownOpen && (
             <div className="absolute right-0 mt-4 w-52 md:w-60 bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl p-2 z-[300]">
-              <button onClick={() => {navigator.clipboard.writeText("0x7a3f...6f7a"); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 rounded-xl text-[10px] font-bold uppercase text-slate-300"><Copy size={14}/> Copy Address</button>
-              <button onClick={() => {setIsConnected(false); setView('landing'); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-500/10 text-red-500 rounded-xl text-[10px] font-bold uppercase"><LogOut size={14}/> Disconnect</button>
+              <button onClick={() => {navigator.clipboard.writeText(walletAddress); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 rounded-xl text-[10px] font-bold uppercase text-slate-300"><Copy size={14}/> Copy Address</button>
+              <button onClick={() => {setIsConnected(false); setWalletAddress(''); setView('landing'); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-500/10 text-red-500 rounded-xl text-[10px] font-bold uppercase"><LogOut size={14}/> Disconnect</button>
             </div>
           )}
         </div>
@@ -486,7 +489,7 @@ export default function VoteVault() {
                    <ChevronLeft size={16}/> Back
                 </button>
                 <div className={`px-4 py-2 rounded-xl border text-[10px] font-mono ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white' : 'bg-white border-black/10 text-black'}`}>
-                   0x7a3f...6f7a
+                   {isConnected ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'Not connected'}
                 </div>
              </div>
 
@@ -698,7 +701,7 @@ export default function VoteVault() {
       {showWalletModal && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
           {/* Backdrop with heavy blur as per your code */}
-          <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => {setShowWalletModal(false); setSelectedWallet(null); setWalletPassword('');}} />
+          <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => {setShowWalletModal(false); setSelectedWallet(null); setWalletAddress('');}} />
           
           <div className="relative bg-[#0d1117] border border-white/10 w-full max-w-md rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-14 animate-in zoom-in-95 duration-300">
             
@@ -733,63 +736,32 @@ export default function VoteVault() {
                 </div>
               </div>
             ) : (
-              /* STAGE 2: PIN INPUT (FIXED FOCUS) */
+              /* STAGE 2: WALLET ADDRESS INPUT */
               <div className="animate-in slide-in-from-right-4">
                  <div className="flex items-center gap-4 mb-10">
-                    <button onClick={() => {setSelectedWallet(null); setWalletPassword('');}} className="p-2 hover:bg-white/5 rounded-full text-white transition-colors">
+                    <button onClick={() => {setSelectedWallet(null); setWalletAddress('');}} className="p-2 hover:bg-white/5 rounded-full text-white transition-colors">
                       <ChevronLeft size={24}/>
                     </button>
                     <div>
                       <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter italic">Authorize</h3>
-                      <p className="text-[10px] font-bold text-[#86e8f8] uppercase tracking-widest">Confirm {selectedWallet} Pin</p>
+                      <p className="text-[10px] font-bold text-[#86e8f8] uppercase tracking-widest">Confirm {selectedWallet} Wallet</p>
                     </div>
                  </div>
-                 
-                 {/* This container handles clicks to refocus the input */}
-                 <div 
-                    className="space-y-10 relative cursor-text" 
-                    onClick={() => pinInputRef.current?.focus()}
-                 >
-                    {/* Visual PIN Dots */}
-                    <div className="flex justify-center gap-3">
-                       {[0, 1, 2, 3].map(i => (
-                         <div 
-                           key={i} 
-                           className={`w-14 h-18 rounded-2xl border-2 flex items-center justify-center text-2xl font-black transition-all duration-300 ${walletPassword.length > i ? 'border-[#86e8f8] text-[#86e8f8] bg-[#86e8f8]/5 shadow-[0_0_20px_rgba(134,232,248,0.1)]' : 'border-white/10'}`}
-                         >
-                           {walletPassword.length > i ? '●' : ''}
-                         </div>
-                       ))}
-                    </div>
-                    
-                    {/* The Actual Hidden Input - Fully Functional now */}
-                    <input 
-                      // ref={pinInputRef}
-                      type="password" 
-                      pattern="\d*"
-                      inputMode="numeric"
-                      maxLength={4} 
+                 <div className="space-y-10">
+                    <input
+                      type="text"
                       autoFocus
-                      value={walletPassword} 
-                      onChange={(e) => {
-                        const val = e.target.value.replace(/\D/g, ''); 
-                        setWalletPassword(val); 
-                        if(val.length === 4) {
-                          setTimeout(() => {
-                            handleConnect();
-                          }, 40);
-                        }
-                      }} 
-                      // Styles to keep it invisible but functional
-                      className="absolute inset-0 opacity-0 w-full h-full cursor-text" 
+                      value={walletAddress}
+                      onChange={(e) => setWalletAddress(e.target.value)}
+                      placeholder="0x..."
+                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-6 text-white text-sm outline-none focus:border-[#86e8f8]/50 font-mono"
                     />
-                    
                     <div className="text-center space-y-4">
-                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Security Protocol Active without click</p>
-                      <button 
+                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Enter wallet address to connect</p>
+                      <button
                         onClick={handleConnect}
-                        disabled={walletPassword.length < 4}
-                        className={`w-full py-6 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${walletPassword.length === 4 ? 'bg-[#86e8f8] text-black scale-105 shadow-lg shadow-[#86e8f8]/20' : 'bg-white/5 text-slate-600 cursor-not-allowed'}`}
+                        disabled={!/^0x[a-fA-F0-9]{8,}$/.test(walletAddress.trim())}
+                        className={`w-full py-6 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${/^0x[a-fA-F0-9]{8,}$/.test(walletAddress.trim()) ? 'bg-[#86e8f8] text-black scale-105 shadow-lg shadow-[#86e8f8]/20' : 'bg-white/5 text-slate-600 cursor-not-allowed'}`}
                       >
                         Confirm Access
                       </button>
