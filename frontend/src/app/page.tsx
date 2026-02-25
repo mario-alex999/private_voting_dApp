@@ -3,13 +3,29 @@
 import React, { useState, useMemo } from 'react';
 import { 
   Lock, LayoutDashboard, Menu, X as CloseIcon,
-  Shield,MessageSquare, 
+  MessageSquare, 
   FileText, LogOut, Search, ChevronRight, 
   ChevronLeft, Copy, ChevronDown, CheckCircle2,
-  Plus, ShieldCheck, Zap, Globe, Database, Share2, EyeOff, Clock, Ban, Shield, Calendar, Send, Mail, ArrowUpRight, Fingerprint, UserCheck
+  Plus, ShieldCheck, Zap, Globe, Database, Share2, EyeOff, Clock, Ban, Shield, Calendar, Send, Mail, ArrowUpRight, Fingerprint, UserCheck,Sun,Moon
 } from 'lucide-react';
 
 export default function VoteVault() {
+   // --- THEME STATE ---
+  const [theme, setTheme] = useState('dark');
+  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+
+  const team = [
+    { name: "Amuka Treasure", role: "UI/UX Designer", img: "amuka.jpg" },
+    { name: "Onyeka Princecharles", role: "Frontend Dev", img: "prinz.jpg" },
+    { name: "Muhammed Abdullahi", role: "Backend Architect", img: "IMG-20260222-WA0009.jpg" },
+    { name: "Obi Akachukwu", role: "Smart-contract dev", img: "IMG-20260223-WA0001.jpg" }
+  ];
+
+  const faqs = [
+    { q: "Is my vote really anonymous?", a: "Yes. Using Zero-Knowledge Proofs, we verify your right to vote without revealing your identity or wallet address." },
+    { q: "What wallets are supported?", a: "We currently support Argent X, Braavos, and MetaMask via Snaps." },
+    { q: "How are results verified?", a: "All results are settled on-chain where the cryptographic proof can be audited by anyone." }
+  ];
   // --- CORE DATA ---
   const testimonials = [
     { quote: "VoteVault transformed our DAO's governance. Participation is up 40% now that voting is truly private.", author: "Alex R.", role: "Lead at NexusDAO" },
@@ -26,6 +42,8 @@ export default function VoteVault() {
   const [activeTestimonial, setActiveTestimonial] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
+  const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const pinInputRef = React.useRef<HTMLInputElement>(null);
 
   // --- WALLET & AUTH STATE ---
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -51,6 +69,36 @@ export default function VoteVault() {
       id: 3, title: "Global Ambassador Program", 
       summary: "Marketing budget for regional adoption leads.", 
       deadline: "2026-01-10", status: "Passed", forVotes: 25000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
+    },
+    { 
+      id: 4, title: "Global colleteral Program", 
+      summary: "colleteral budget for regional adoption leads.", 
+      deadline: "2026-01-10", status: "Rejected", forVotes: 20000, againstVotes: 12000, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
+    },
+    { 
+      id: 5, title: "W-dex Program", 
+      summary: "adoption for leads.", 
+      deadline: "2026-01-10", status: "Passed", forVotes: 25000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
+    },
+    { 
+      id: 6, title: "W-dex Program", 
+      summary: "adoption for leads.", 
+      deadline: "2026-01-10", status: "Passed", forVotes: 22000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
+    },
+    { 
+      id: 7, title: "W-dex Program", 
+      summary: "adoption for leads.", 
+      deadline: "2026-01-10", status: "Passed", forVotes: 24000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
+    },
+    { 
+      id: 8, title: "W-dex Program", 
+      summary: "adoption for leads.", 
+      deadline: "2026-01-10", status: "Passed", forVotes: 21000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
+    },
+    { 
+      id: 9, title: "W-dex Program", 
+      summary: "adoption for leads.", 
+      deadline: "2026-01-10", status: "Passed", forVotes: 27000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
     }
   ]);
 
@@ -122,7 +170,7 @@ export default function VoteVault() {
       summary: formSummary,
       motivation: formMotivation,
       deadline: formDeadline,
-      status: "Pending",
+      status: "Live",
       forVotes: 0, againstVotes: 0, voters: 0, hasVoted: false, tag: formTag, quorum: 0
     };
     
@@ -149,6 +197,7 @@ export default function VoteVault() {
     if(updatedP) setSelectedProposal(updatedP);
   };
 
+  
   return (
     <div className="min-h-screen bg-[#05070a] text-slate-400 font-sans flex flex-col overflow-x-hidden selection:bg-[#86e8f8] selection:text-black">
       
@@ -164,6 +213,8 @@ export default function VoteVault() {
             <button onClick={() => setIsAdminMode(false)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${!isAdminMode ? 'bg-[#86e8f8] text-black' : 'text-slate-500'}`}>Voter</button>
             <button onClick={() => setIsAdminMode(true)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${isAdminMode ? 'bg-amber-500 text-black' : 'text-slate-500'}`}>Admin</button>
           </div>
+        
+          
 
           {isAdminMode && (
             <div className="mb-8">
@@ -208,7 +259,6 @@ export default function VoteVault() {
           )}
         </div>
       </header>
-
       <main className="flex-grow w-full">
         {view === 'landing' && (
           <div className="animate-in fade-in duration-700 w-full overflow-hidden">
@@ -220,7 +270,7 @@ export default function VoteVault() {
                   <h1 className="text-4xl sm:text-6xl md:text-7xl xl:text-8xl font-black text-white leading-[1.05] tracking-tighter uppercase">
                     Vote with <span className="text-[#86e8f8]">Privacy</span>,<br/> Trust with <span className="text-[#86e8f8]">Proof</span>
                   </h1>
-                  <p className="text-slate-500 text-sm md:text-xl max-w-xl leading-relaxed">
+                  <p className="text-slate-500 text-sm md:text-x0.5 max-w-xl leading-relaxed">
                     Anonymous voting powered by cutting-edge zero-knowledge cryptography. Secure your DAO's future without compromising identity.
                   </p>
                   <div className="flex flex-col sm:flex-row gap-4">
@@ -301,6 +351,20 @@ export default function VoteVault() {
               </div>
             </section>
 
+            {/* MEET THE TEAM */}
+            <section id="team" className="py-24 px-6 max-w-7xl mx-auto border-t border-white/5">
+              <h2 className={`text-3xl md:text-5xl font-black uppercase mb-16 text-center ${theme === 'dark' ? 'text-white' : 'text-black'}`}>The Architects</h2>
+              <div className="grid md:grid-cols-3 gap-8">
+                {team.map(member => (
+                  <div key={member.name} className={`p-10 rounded-[3.5rem] border text-center transition-all hover:-translate-y-2 ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5 shadow-xl'}`}>
+                    <img src={member.img} alt={member.name} className="w-45 h-45 rounded-full mb-6 mx-auto border-4 border-[#86e8f8] p-1" />
+                    <h3 className="font-black uppercase text-xl mb-1">{member.name}</h3>
+                    <p className="text-[10px] font-black uppercase text-[#86e8f8] tracking-[0.2em]">{member.role}</p>
+                  </div>
+                ))}
+              </div>
+            </section>
+
             {/* TESTIMONIALS */}
             <section className="py-24 md:py-40 bg-black px-6 text-center border-y border-white/5">
                 <div className="max-w-4xl mx-auto space-y-10 md:space-y-12">
@@ -309,6 +373,21 @@ export default function VoteVault() {
                     {[0,1,2].map(i => <button key={i} onClick={()=>setActiveTestimonial(i)} className={`h-1 md:h-1.5 transition-all rounded-full ${activeTestimonial === i ? 'w-10 md:w-12 bg-[#86e8f8]' : 'w-2 md:w-3 bg-white/10'}`} />)}
                   </div>
                 </div>
+            </section>
+
+            {/* FAQ SECTION */}
+            <section id="faq" className="py-24 px-6 max-w-3xl mx-auto border-t border-white/5">
+              <h2 className={`text-3xl md:text-5xl font-black uppercase mb-16 text-center ${theme === 'dark' ? 'text-white' : 'text-black'}`}>General FAQ</h2>
+              <div className="space-y-4">
+                {faqs.map((faq, i) => (
+                  <div key={i} className={`rounded-[2rem] border overflow-hidden transition-all ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5'}`}>
+                    <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full p-8 flex justify-between items-center text-left font-black uppercase text-[11px] tracking-widest">
+                      {faq.q} <ChevronDown className={`transition-transform duration-300 ${openFaq === i ? 'rotate-180' : ''}`} size={16} />
+                    </button>
+                    {openFaq === i && <div className="p-8 pt-0 text-sm opacity-60 leading-relaxed border-t border-white/5 animate-in slide-in-from-top-2">{faq.a}</div>}
+                  </div>
+                ))}
+              </div>
             </section>
 
             {/* CTA SECTION */}
@@ -320,6 +399,7 @@ export default function VoteVault() {
             </section>
           </div>
         )}
+        
 
         {view === 'dashboard' && (
           <div className="p-4 md:p-16 max-w-7xl mx-auto w-full animate-in fade-in">
@@ -398,64 +478,169 @@ export default function VoteVault() {
           </div>
         )}
 
-        {view === 'proposal-detail' && (
-          <div className="p-4 md:p-16 max-w-7xl mx-auto w-full animate-in slide-in-from-right-10 overflow-hidden">
-            <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-slate-500 font-black text-[10px] uppercase mb-8 md:mb-16"><ChevronLeft size={20}/> Back</button>
-            <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 md:gap-16">
-              <div className="lg:col-span-7 space-y-10 md:space-y-16">
-                <div className="space-y-6 md:space-y-8">
-                  <span className={`px-4 py-1.5 border rounded-lg text-[9px] font-black uppercase tracking-widest ${getTagStyle(selectedProposal.status)}`}>{selectedProposal.status}</span>
-                  <h2 className="text-3xl md:text-6xl font-black text-white uppercase tracking-tighter leading-tight">{selectedProposal.title}</h2>
-                  <p className="text-slate-500 text-sm md:text-lg leading-relaxed">{selectedProposal.summary}</p>
+       {view === 'proposal-detail' && (
+          <div className="p-6 md:p-16 max-w-7xl mx-auto animate-in slide-in-from-right-8 duration-500">
+             {/* TOP NAVIGATION */}
+             <div className="flex justify-between items-center mb-12">
+                <button onClick={() => setView('dashboard')} className="flex items-center gap-2 opacity-50 font-black uppercase text-[10px] hover:opacity-100 transition-opacity">
+                   <ChevronLeft size={16}/> Back
+                </button>
+                <div className={`px-4 py-2 rounded-xl border text-[10px] font-mono ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white' : 'bg-white border-black/10 text-black'}`}>
+                   0x7a3f...6f7a
                 </div>
-                <div className="bg-[#0d1117] p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] border border-white/5 space-y-8">
-                   <div className="space-y-4">
-                      <h4 className="text-[#86e8f8] font-black uppercase text-[10px] tracking-widest">Motivation</h4>
-                      <p className="text-slate-400 text-sm md:text-base leading-relaxed">{selectedProposal.motivation || "No additional details provided."}</p>
-                   </div>
-                   <div className="flex items-center gap-3 md:gap-4 text-slate-500 text-[10px] font-black uppercase bg-black/40 p-4 md:p-6 rounded-2xl border border-white/5 w-fit">
-                      <Calendar size={18} className="text-[#86e8f8]"/> {selectedProposal.deadline}
-                   </div>
-                </div>
-              </div>
+             </div>
 
-              <div className="lg:col-span-5 space-y-8 md:space-y-10">
-                <div className="bg-[#0d1117] p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] border border-white/10 shadow-2xl text-center">
-                  <h4 className="text-white font-black text-[10px] uppercase tracking-widest mb-10">Cast Your Ballot</h4>
-                  {selectedProposal.status === 'Live' && !selectedProposal.hasVoted && (
-                    <div className="space-y-4">
-                      <button onClick={() => handleVote('for')} className="w-full bg-[#86e8f8] text-black py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] tracking-widest">Support</button>
-                      <button onClick={() => handleVote('against')} className="w-full bg-red-500/10 text-red-500 border border-red-500/20 py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] tracking-widest">Reject</button>
-                    </div>
-                  )}
-                  {selectedProposal.status !== 'Live' && <p className="text-slate-600 font-black uppercase text-[10px]">Voting Closed</p>}
-                  {selectedProposal.hasVoted && (
-                    <div className="space-y-4">
-                      <CheckCircle2 size={40} className="mx-auto text-green-500" />
-                      <p className="text-green-500 font-black uppercase text-[10px]">Ballot Verified</p>
-                    </div>
-                  )}
-                </div>
+             <div className="grid lg:grid-cols-3 gap-8">
+               {/* LEFT COLUMN: FULL DESCRIPTION & DISCUSSION */}
+               <div className="lg:col-span-2 space-y-8">
+                  <div className="space-y-4">
+                     <div className="flex items-center gap-3">
+                        <span className={`px-3 py-1 border rounded-lg text-[8px] font-black uppercase tracking-widest ${selectedProposal.status === 'Live' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-slate-500/10 text-slate-500 border-slate-500/20'}`}>
+                          {selectedProposal.status}
+                        </span>
+                        <span className="text-[10px] font-bold opacity-40 uppercase">Ends {selectedProposal.deadline}</span>
+                     </div>
+                     <h2 className={`text-3xl md:text-4xl font-black uppercase leading-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{selectedProposal.title}</h2>
+                     <p className="text-sm opacity-50 leading-relaxed max-w-2xl">Proposal to adjust protocol parameters to ensure long-term network stability and security.</p>
+                  </div>
 
-                <div className="bg-[#0d1117] p-8 md:p-12 rounded-[2rem] md:rounded-[4rem] border border-white/5 text-center">
-                  <h4 className="text-white font-black text-[10px] uppercase tracking-widest mb-10">Results</h4>
-                  <div className="relative w-40 h-40 md:w-56 md:h-56 mx-auto">
-                    <svg viewBox="0 0 36 36" className="w-full h-full transform -rotate-90">
-                      <circle cx="18" cy="18" r="16" fill="transparent" stroke="#ef4444" strokeWidth="4" />
-                      <circle cx="18" cy="18" r="16" fill="transparent" stroke="#22c55e" strokeWidth="4" 
-                              strokeDasharray={`${getPercentages(selectedProposal.forVotes, selectedProposal.againstVotes).forP} 100`} strokeLinecap="round" />
-                    </svg>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-white font-black text-2xl md:text-4xl">{Math.round(getPercentages(selectedProposal.forVotes, selectedProposal.againstVotes).forP)}%</span>
+                  <div className={`p-10 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5 shadow-sm'}`}>
+                    <h3 className="font-black uppercase text-xl mb-8">Full Description</h3>
+                    <div className="space-y-8">
+                      <div>
+                        <h4 className="font-black uppercase text-[11px] mb-4 text-[#86e8f8]">Summary</h4>
+                        <p className="text-sm opacity-70 leading-relaxed">{selectedProposal.summary}</p>
+                      </div>
+                      <div>
+                        <h4 className="font-black uppercase text-[11px] mb-4 text-[#86e8f8]">Motivation</h4>
+                        <p className="text-sm opacity-70 leading-relaxed">{selectedProposal.motivation || "This proposal addresses the current needs for protocol scalability and user incentives."}</p>
+                      </div>
+                      <div>
+                        <h4 className="font-black uppercase text-[11px] mb-4 text-[#86e8f8]">Specification</h4>
+                        <ul className="text-sm opacity-70 space-y-2 list-disc pl-5">
+                          <li>Category: {selectedProposal.tag}</li>
+                          <li>Current Status: {selectedProposal.status}</li>
+                          <li>Quorum Required: {selectedProposal.quorum}%</li>
+                          <li>Verification: Zero-Knowledge Proof (STARK)</li>
+                        </ul>
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
-            </div>
+
+                  {/* DISCUSSION SECTION (FUNCTIONAL) */}
+                  <div className={`p-10 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5'}`}>
+                    <h3 className="font-black uppercase text-[11px] mb-6 opacity-40">Discussion</h3>
+                    <div className="space-y-6">
+                      <textarea 
+                        value={adminAuthInput} 
+                        onChange={(e) => setAdminAuthInput(e.target.value)} 
+                        placeholder="Leave a comment..." 
+                        className="w-full bg-black/20 border border-white/10 rounded-2xl p-6 text-sm outline-none h-32 text-white resize-none" 
+                      />
+                      <button 
+                        onClick={() => {
+                          if(!adminAuthInput.trim()) return;
+                          // In a real app, you'd push to a state array. For this demo, we alert and clear.
+                          alert("Comment posted: " + adminAuthInput);
+                          setAdminAuthInput('');
+                        }}
+                        className="bg-[#86e8f8] text-black px-8 py-3 rounded-xl font-black uppercase text-[10px] flex items-center gap-2 hover:scale-105 transition-transform"
+                      >
+                        <Send size={14}/> Post Comment
+                      </button>
+
+                      <div className="pt-8 space-y-6">
+                        {/* Newest comment placeholder logic */}
+                        <div className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-3 animate-in fade-in slide-in-from-top-4">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-mono text-[#86e8f8]">0x7a3f...6f7a</span>
+                            <span className="text-[9px] opacity-30">Just now</span>
+                          </div>
+                          <p className="text-xs opacity-60">I've reviewed the ZK-proof logic for this proposal. It looks solid and significantly improves privacy.</p>
+                        </div>
+                        {/* Static existing comments */}
+                        <div className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-3">
+                          <div className="flex justify-between items-center">
+                            <span className="text-[10px] font-mono text-[#86e8f8]">0x4b2d...1e8c</span>
+                            <span className="text-[9px] opacity-30">2 hours ago</span>
+                          </div>
+                          <p className="text-xs opacity-60">Strong support for this. Validator attrition is a real concern and this adjustment is necessary.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+               </div>
+
+               {/* RIGHT COLUMN: VOTING & STATS */}
+               <div className="space-y-6">
+                  {/* CAST VOTE CARD (RESTRICTED TO LIVE) */}
+                  <div className={`p-8 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/10' : 'bg-white border-black/10 shadow-xl'}`}>
+                    <h4 className="font-black uppercase text-[10px] mb-8 opacity-40 text-center">Cast Your Vote</h4>
+                    
+                    {selectedProposal.status !== 'Live' ? (
+                      <div className="py-6 border-2 border-white/5 rounded-2xl text-slate-500 font-black uppercase text-[10px] flex flex-col items-center gap-2 bg-white/5 text-center px-4">
+                        <Ban size={24} className="opacity-30"/> Voting is {selectedProposal.status}
+                      </div>
+                    ) : !selectedProposal.hasVoted ? (
+                      <div className="space-y-3">
+                        <button onClick={() => handleVote('for')} className="w-full bg-[#86e8f8] text-black py-4 rounded-xl font-black uppercase text-[10px] hover:scale-[1.02] transition-transform">Vote For</button>
+                        <button onClick={() => handleVote('against')} className="w-full bg-red-500/10 text-red-500 py-4 rounded-xl font-black uppercase text-[10px] border border-red-500/20">Vote Against</button>
+                      </div>
+                    ) : (
+                      <div className="py-6 border-2 border-green-500/20 rounded-2xl text-green-500 font-black uppercase text-[10px] flex flex-col items-center gap-2 bg-green-500/5">
+                        <CheckCircle2 size={24}/> Vote Submitted
+                      </div>
+                    )}
+                    <p className="text-center text-[8px] font-bold uppercase opacity-30 mt-6 tracking-widest">
+                      {selectedProposal.status === 'Live' ? 'Wallet connected can vote' : 'This proposal is no longer active'}
+                    </p>
+                  </div>
+
+                  {/* VOTE DISTRIBUTION (DYNAMIC DONUT) */}
+                  <div className={`p-8 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/10' : 'bg-white border-black/10'}`}>
+                    <h4 className="font-black uppercase text-[10px] mb-8 opacity-40 text-center">Vote Distribution</h4>
+                    <div className="relative flex justify-center py-4">
+                        <div 
+                          className="w-40 h-40 rounded-full flex items-center justify-center transition-all duration-1000" 
+                          style={{ 
+                            background: `conic-gradient(#22c55e 0% ${getPercentages(selectedProposal.forVotes, selectedProposal.againstVotes).forP}%, #ef4444 ${getPercentages(selectedProposal.forVotes, selectedProposal.againstVotes).forP}% 100%)` 
+                          }}
+                        >
+                           <div className={`w-28 h-28 rounded-full ${theme === 'dark' ? 'bg-[#0d1117]' : 'bg-white'}`} />
+                        </div>
+                    </div>
+                    <div className="flex justify-center gap-8 mt-6">
+                       <div className="flex items-center gap-2 text-[10px] font-black uppercase"><div className="w-3 h-3 bg-green-500 rounded-sm"/> For</div>
+                       <div className="flex items-center gap-2 text-[10px] font-black uppercase"><div className="w-3 h-3 bg-red-500 rounded-sm"/> Against</div>
+                    </div>
+                  </div>
+
+                  {/* STATISTICS (LIVE UPDATE) */}
+                  <div className={`p-8 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/10' : 'bg-white border-black/10'}`}>
+                    <h4 className="font-black uppercase text-[10px] mb-8 opacity-40 text-center">Statistics</h4>
+                    <div className="space-y-6">
+                       <div className="flex justify-between items-center"><span className="text-[11px] font-bold opacity-50 uppercase">Total Votes</span><span className="text-sm font-black">{(selectedProposal.forVotes + selectedProposal.againstVotes).toLocaleString()}</span></div>
+                       <div className="flex justify-between items-center"><span className="text-[11px] font-bold opacity-50 uppercase">Unique Voters</span><span className="text-sm font-black">{selectedProposal.voters}</span></div>
+                       <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-bold opacity-50 uppercase">For</span>
+                          <span className="text-sm font-black text-green-500">{getPercentages(selectedProposal.forVotes, selectedProposal.againstVotes).forP.toFixed(1)}%</span>
+                       </div>
+                       <div className="flex justify-between items-center">
+                          <span className="text-[11px] font-bold opacity-50 uppercase">Against</span>
+                          <span className="text-sm font-black text-red-500">{getPercentages(selectedProposal.forVotes, selectedProposal.againstVotes).againstP.toFixed(1)}%</span>
+                       </div>
+                       <div className="space-y-3 pt-4 border-t border-white/5">
+                          <div className="flex justify-between text-[10px] font-black uppercase"><span>Quorum Progress</span><span>{selectedProposal.quorum}%</span></div>
+                          <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden">
+                             <div className="h-full bg-green-500 transition-all duration-700" style={{ width: `${selectedProposal.quorum}%` }} />
+                          </div>
+                       </div>
+                    </div>
+                  </div>
+               </div>
+             </div>
           </div>
         )}
-      </main>
-
       {/* FOOTER */}
       <footer className="bg-[#080a0f] pt-20 md:pt-32 pb-12 md:pb-16 px-6 md:px-12 border-t border-white/5">
           <div className="max-w-7xl mx-auto">
@@ -466,7 +651,7 @@ export default function VoteVault() {
                   The standard for private decentralized decision making using zero-knowledge technology.
                 </p>
                 <div className="flex gap-4">
-                  {[Twitter, Github, MessageSquare].map((Icon, i) => (
+                  {[ MessageSquare].map((Icon, i) => (
                     <a key={i} href="#" className="w-10 h-10 md:w-12 md:h-12 bg-white/5 rounded-xl flex items-center justify-center text-slate-400">
                       <Icon size={20} />
                     </a>
@@ -507,25 +692,114 @@ export default function VoteVault() {
             </div>
           </div>
       </footer>
+      </main>
+      
 
-      {/* WALLET MODAL */}
       {showWalletModal && (
         <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
-          <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => setShowWalletModal(false)} />
-          <div className="relative bg-[#0d1117] border border-white/10 w-full max-w-lg rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-16 animate-in zoom-in-95">
-            <h3 className="text-2xl md:text-4xl font-black text-white uppercase tracking-tighter mb-8 md:mb-10 text-center">Unlock Wallet</h3>
-            <div className="space-y-6 md:space-y-8">
-              <div className="grid grid-cols-2 gap-3 md:gap-4">
-                {['MetaMask', 'Phantom'].map(w => (
-                  <button key={w} onClick={() => setSelectedWallet(w)} className={`p-5 md:p-6 rounded-2xl border text-[9px] md:text-[10px] font-black uppercase transition-all ${selectedWallet === w ? 'bg-[#86e8f8] text-black border-[#86e8f8]' : 'bg-white/5 text-slate-500 border-white/5'}`}>{w}</button>
-                ))}
+          {/* Backdrop with heavy blur as per your code */}
+          <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => {setShowWalletModal(false); setSelectedWallet(null); setWalletPassword('');}} />
+          
+          <div className="relative bg-[#0d1117] border border-white/10 w-full max-w-md rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-14 animate-in zoom-in-95 duration-300">
+            
+            {!selectedWallet ? (
+              /* STAGE 1: SELECT WALLET (With Logos) */
+              <div className="animate-in fade-in slide-in-from-bottom-4">
+                <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter mb-10 text-center italic">Connect Identity</h3>
+                
+                <div className="grid gap-4">
+                  {[
+                    { name: 'Braavos', logo: 'https://raw.githubusercontent.com/starknet-io/starknet-assets/main/wallets/braavos.svg', desc: 'Starknet Smart Wallet' },
+                    { name: 'Argent X', logo: 'https://raw.githubusercontent.com/starknet-io/starknet-assets/main/wallets/argent-x.svg', desc: 'The Gateway to Starknet' },
+                    { name: 'MetaMask', logo: 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg', desc: 'Ethereum & L2 Gateway' }
+                  ].map(w => (
+                    <button 
+                      key={w.name} 
+                      onClick={() => setSelectedWallet(w.name)} 
+                      className="flex items-center justify-between p-5 rounded-[2rem] border border-white/5 bg-white/5 hover:border-[#86e8f8]/50 hover:bg-[#86e8f8]/5 transition-all group"
+                    >
+                      <div className="flex items-center gap-5">
+                        <div className="w-12 h-12 bg-black/40 rounded-2xl p-2.5 flex items-center justify-center group-hover:scale-110 transition-transform">
+                          <img src={w.logo} alt={w.name} className="w-full h-full object-contain" />
+                        </div>
+                        <div className="text-left">
+                          <span className="block text-white font-black uppercase text-[11px] tracking-widest">{w.name}</span>
+                          <span className="block text-slate-500 text-[9px] uppercase font-bold mt-1">{w.desc}</span>
+                        </div>
+                      </div>
+                      <ChevronRight size={18} className="text-white opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
+                    </button>
+                  ))}
+                </div>
               </div>
-              <input type="password" value={walletPassword} onChange={e => setWalletPassword(e.target.value)} placeholder="Enter Pin" className="w-full bg-black/50 border border-white/10 rounded-xl py-4 md:py-6 px-6 md:px-8 text-sm text-white outline-none focus:border-[#86e8f8]/40" />
-              <button onClick={handleConnect} className="w-full bg-[#86e8f8] text-black py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest mt-4">Confirm Connection</button>
-            </div>
+            ) : (
+              /* STAGE 2: PIN INPUT (FIXED FOCUS) */
+              <div className="animate-in slide-in-from-right-4">
+                 <div className="flex items-center gap-4 mb-10">
+                    <button onClick={() => {setSelectedWallet(null); setWalletPassword('');}} className="p-2 hover:bg-white/5 rounded-full text-white transition-colors">
+                      <ChevronLeft size={24}/>
+                    </button>
+                    <div>
+                      <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter italic">Authorize</h3>
+                      <p className="text-[10px] font-bold text-[#86e8f8] uppercase tracking-widest">Confirm {selectedWallet} Pin</p>
+                    </div>
+                 </div>
+                 
+                 {/* This container handles clicks to refocus the input */}
+                 <div 
+                    className="space-y-10 relative cursor-text" 
+                    onClick={() => pinInputRef.current?.focus()}
+                 >
+                    {/* Visual PIN Dots */}
+                    <div className="flex justify-center gap-3">
+                       {[0, 1, 2, 3].map(i => (
+                         <div 
+                           key={i} 
+                           className={`w-14 h-18 rounded-2xl border-2 flex items-center justify-center text-2xl font-black transition-all duration-300 ${walletPassword.length > i ? 'border-[#86e8f8] text-[#86e8f8] bg-[#86e8f8]/5 shadow-[0_0_20px_rgba(134,232,248,0.1)]' : 'border-white/10'}`}
+                         >
+                           {walletPassword.length > i ? '●' : ''}
+                         </div>
+                       ))}
+                    </div>
+                    
+                    {/* The Actual Hidden Input - Fully Functional now */}
+                    <input 
+                      // ref={pinInputRef}
+                      type="password" 
+                      pattern="\d*"
+                      inputMode="numeric"
+                      maxLength={4} 
+                      autoFocus
+                      value={walletPassword} 
+                      onChange={(e) => {
+                        const val = e.target.value.replace(/\D/g, ''); 
+                        setWalletPassword(val); 
+                        if(val.length === 4) {
+                          setTimeout(() => {
+                            handleConnect();
+                          }, 40);
+                        }
+                      }} 
+                      // Styles to keep it invisible but functional
+                      className="absolute inset-0 opacity-0 w-full h-full cursor-text" 
+                    />
+                    
+                    <div className="text-center space-y-4">
+                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Security Protocol Active without click</p>
+                      <button 
+                        onClick={handleConnect}
+                        disabled={walletPassword.length < 4}
+                        className={`w-full py-6 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${walletPassword.length === 4 ? 'bg-[#86e8f8] text-black scale-105 shadow-lg shadow-[#86e8f8]/20' : 'bg-white/5 text-slate-600 cursor-not-allowed'}`}
+                      >
+                        Confirm Access
+                      </button>
+                    </div>
+                 </div>
+              </div>
+            )}
           </div>
         </div>
-      )}
+  )}
     </div>
   );
 }
