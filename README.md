@@ -22,6 +22,7 @@ VoteVault is a Starknet voting dApp that combines:
 - DAO vote submission is proof-based: `vote_on_proposal(proposal_id, support, weight, nullifier_hash, proof)`.
 - Token weight is verified through ZK public inputs (`weight`) against the eligibility/snapshot Merkle root.
 - Duplicate nullifier per proposal is rejected: `NULLIFIER_USED`.
+- Proposal vote replay check uses nullifier lookup: `has_voted_proposal(proposal_id, nullifier_hash)`.
 - Invalid proof / missing proof / invalid weight are rejected:
   - `INVALID_PROOF`
   - `MISSING_PROOF`
@@ -40,7 +41,7 @@ VoteVault is a Starknet voting dApp that combines:
 - `contracts/src/private_voting.cairo`: private voting + DAO proposal voting
 - `contracts/src/vv_coin.cairo`: `VV Coin` (mint/transfer/balance/admin)
 - `contracts/src/mock_verifier.cairo`: test verifier
-- `contracts/tests/test_contract.cairo`: integration coverage (21 tests)
+- `contracts/tests/test_contract.cairo`: integration coverage (23 tests)
 
 ## Repository layout
 - `circuits/private_vote.nr`: Noir circuit source
@@ -96,3 +97,9 @@ node scripts/syncAddresses.js
 ## Current verification status
 - Contract integration tests: `23/23` passing (`snforge test`)
 - Frontend production build: passing (`next build`)
+
+## Recent changes
+- Added private token-weighted DAO vote path with proof verification in `vote_on_proposal`.
+- Added Noir circuit for private weighted proposal votes: `circuits/private_token_weighted_vote.nr`.
+- Added offchain helpers for weighted-proof inputs in `scripts/offchain/privateVoting.js`.
+- Added wallet session persistence across page refresh in `frontend/src/app/page.tsx`.

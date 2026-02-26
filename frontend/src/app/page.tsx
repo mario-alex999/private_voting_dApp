@@ -37,6 +37,10 @@ type Proposal = {
 type InjectedStarknetWallet = {
   enable: (options?: unknown) => Promise<string[]>;
   selectedAddress?: string;
+  provider?: {
+    chainId?: string;
+    getChainId?: () => Promise<string>;
+  };
   account?: {
     address?: string;
     execute?: (calls: unknown) => Promise<{ transaction_hash?: string; transactionHash?: string }>;
@@ -332,27 +336,11 @@ export default function VoteVault() {
   // --- ACTIONS ---
   const handleConnect = async () => {
     if (!selectedWallet) return alert("Please select a Starknet wallet.");
-    const normalizedAddress = walletAddress.trim();
-    if (!/^0x[a-fA-F0-9]{1,64}$/.test(normalizedAddress)) {
-      return alert("Please enter a valid wallet address starting with 0x.");
-    }
+    const normalizedInput = walletAddress.trim();
 
     setIsVerifyingWallet(true);
     try {
-      await provider.getClassHashAt(normalizedAddress);
-      const contractClass = await provider.getClassAt(normalizedAddress);
-      const abiContent = JSON.stringify(contractClass).toLowerCase();
-
       const walletType = selectedWallet as WalletName;
-      if (walletType === 'Braavos' && !abiContent.includes('braavos')) {
-        alert('The address exists but does not match a Braavos wallet account.');
-        return;
-      }
-      if (walletType === 'Argent X' && !abiContent.includes('argent')) {
-        alert('The address exists but does not match an Argent X wallet account.');
-        return;
-      }
-
       const browserWallets = window as Window & {
         starknet?: InjectedStarknetWallet;
         starknet_braavos?: InjectedStarknetWallet;
@@ -374,9 +362,35 @@ export default function VoteVault() {
       const selectedAddress = (
         injectedWallet.selectedAddress || injectedWallet.account?.address || accounts?.[0] || ''
       ).toLowerCase();
-      if (selectedAddress && selectedAddress !== normalizedAddress.toLowerCase()) {
+
+      const resolvedAddress = (normalizedInput || selectedAddress).trim();
+      if (!/^0x[a-fA-F0-9]{1,64}$/.test(resolvedAddress)) {
+        return alert("Please enter a valid wallet address starting with 0x, or unlock the selected wallet extension.");
+      }
+      if (normalizedInput && selectedAddress && selectedAddress !== normalizedInput.toLowerCase()) {
         alert('The entered wallet address does not match the selected wallet extension account.');
         return;
+      }
+
+      const walletChainId =
+        (typeof injectedWallet.provider?.getChainId === 'function'
+          ? await injectedWallet.provider.getChainId().catch(() => undefined)
+          : injectedWallet.provider?.chainId) || '';
+      const rpcChainId = await provider.getChainId().catch(() => '');
+      if (walletChainId && rpcChainId && walletChainId !== rpcChainId) {
+        alert(`Network mismatch. Wallet is on ${walletChainId}, app RPC is ${rpcChainId}. Switch wallet network and retry.`);
+        return;
+      }
+
+      // Optional deployed-account verification via RPC.
+      // If this RPC check is unavailable but wallet is injected correctly, allow connection.
+      try {
+        await provider.getClassHashAt(resolvedAddress);
+      } catch {
+        if (!selectedAddress || selectedAddress !== resolvedAddress.toLowerCase()) {
+          alert('Wallet address is not an existing deployed Starknet wallet on this network.');
+          return;
+        }
       }
 
       if (!injectedWallet.account?.execute) {
@@ -384,20 +398,20 @@ export default function VoteVault() {
         return;
       }
       setWalletAccount(injectedWallet.account);
+
+      setWalletAddress(resolvedAddress);
+      setIsConnected(true);
+      setShowWalletModal(false);
+      setView('dashboard');
+      persistWalletSession(walletType, resolvedAddress);
+      await loadOnchainProposals(resolvedAddress);
+      await refreshTokenBalance(resolvedAddress);
     } catch {
-      alert('Wallet address is not an existing deployed Starknet wallet on this network.');
+      alert('Wallet connection failed. Ensure extension is unlocked and set to Starknet Sepolia.');
       return;
     } finally {
       setIsVerifyingWallet(false);
     }
-
-    setWalletAddress(normalizedAddress);
-    setIsConnected(true);
-    setShowWalletModal(false);
-    setView('dashboard');
-    persistWalletSession(selectedWallet as WalletName, normalizedAddress);
-    await loadOnchainProposals(normalizedAddress);
-    await refreshTokenBalance(normalizedAddress);
   };
 
   const handleAdminAuth = () => {
