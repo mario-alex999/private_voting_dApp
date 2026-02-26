@@ -46,12 +46,12 @@ type InjectedStarknetWallet = {
 const CONNECT_WALLETS: Array<{ name: WalletName; logo: string; desc: string }> = [
   {
     name: 'Braavos',
-    logo: 'https://raw.githubusercontent.com/starknet-io/starknet-assets/main/wallets/braavos.svg',
+    logo: '/wallets/braavos.svg',
     desc: 'Starknet Smart Wallet',
   },
   {
     name: 'Argent X',
-    logo: 'https://raw.githubusercontent.com/starknet-io/starknet-assets/main/wallets/argent-x.svg',
+    logo: '/wallets/argent-x.svg',
     desc: 'The Gateway to Starknet',
   },
   {
