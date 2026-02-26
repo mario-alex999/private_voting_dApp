@@ -1,6 +1,6 @@
 "use client";
 import React, { useEffect, useMemo, useState } from 'react';
-import { CallData, RpcProvider, shortString } from 'starknet';
+import { CallData, RpcProvider, hash, shortString } from 'starknet';
 import { 
   Lock, LayoutDashboard, Menu, X as CloseIcon,
   MessageSquare, 
@@ -14,6 +14,7 @@ const rpcUrl =
   'https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10';
 const privateVotingAddress = process.env.NEXT_PUBLIC_PRIVATE_VOTING_ADDRESS || '';
 const vvCoinAddressFromEnv = process.env.NEXT_PUBLIC_VV_COIN_ADDRESS || '';
+const FIELD_MOD = BigInt('3618502788666131106986593281521497120414687020801267626233049500247285301239');
 
 type WalletName = 'Braavos' | 'Argent X' | 'Starknet Wallet';
 type ProposalStatus = 'Live' | 'Passed' | 'Pending' | 'Rejected';
@@ -174,6 +175,7 @@ export default function VoteVault() {
   const [daoVoteWeight, setDaoVoteWeight] = useState('');
   const [daoVoteNullifier, setDaoVoteNullifier] = useState('');
   const [daoVoteProof, setDaoVoteProof] = useState('');
+  const [isGeneratingDaoProof, setIsGeneratingDaoProof] = useState(false);
 
   // --- LOGIC & HELPERS ---
   const toResult = (response: unknown): string[] => {
@@ -185,6 +187,24 @@ export default function VoteVault() {
   };
 
   const toBigInt = (value: unknown) => BigInt(String(value));
+  const toField = (value: unknown) => {
+    const n = toBigInt(value);
+    const out = n % FIELD_MOD;
+    return out >= BigInt(0) ? out : out + FIELD_MOD;
+  };
+  const toHexFelt = (value: unknown) => `0x${toField(value).toString(16)}`;
+  const hash2 = (a: unknown, b: unknown) =>
+    toField(hash.computePoseidonHash(toField(a), toField(b)));
+  const hash3 = (a: unknown, b: unknown, c: unknown) => hash2(hash2(a, b), c);
+  const normalizeHexFelt = (value: string): string | null => {
+    const trimmed = value.trim().toLowerCase();
+    if (!/^0x[a-f0-9]{1,64}$/.test(trimmed)) return null;
+    try {
+      return `0x${BigInt(trimmed).toString(16)}`;
+    } catch {
+      return null;
+    }
+  };
 
   const resolveStatus = (deadlineTs: number, isOpen: boolean, forVotes: number, againstVotes: number): ProposalStatus => {
     const now = Math.floor(Date.now() / 1000);
@@ -359,15 +379,16 @@ export default function VoteVault() {
       }
 
       const accounts = await injectedWallet.enable();
-      const selectedAddress = (
+      const selectedAddressRaw = (
         injectedWallet.selectedAddress || injectedWallet.account?.address || accounts?.[0] || ''
       ).toLowerCase();
-
-      const resolvedAddress = (normalizedInput || selectedAddress).trim();
-      if (!/^0x[a-fA-F0-9]{1,64}$/.test(resolvedAddress)) {
+      const inputCanonical = normalizedInput ? normalizeHexFelt(normalizedInput) : null;
+      const selectedCanonical = selectedAddressRaw ? normalizeHexFelt(selectedAddressRaw) : null;
+      const resolvedAddress = inputCanonical || selectedCanonical;
+      if (!resolvedAddress) {
         return alert("Please enter a valid wallet address starting with 0x, or unlock the selected wallet extension.");
       }
-      if (normalizedInput && selectedAddress && selectedAddress !== normalizedInput.toLowerCase()) {
+      if (inputCanonical && selectedCanonical && selectedCanonical !== inputCanonical) {
         alert('The entered wallet address does not match the selected wallet extension account.');
         return;
       }
@@ -387,7 +408,7 @@ export default function VoteVault() {
       try {
         await provider.getClassHashAt(resolvedAddress);
       } catch {
-        if (!selectedAddress || selectedAddress !== resolvedAddress.toLowerCase()) {
+        if (!selectedCanonical || selectedCanonical !== resolvedAddress) {
           alert('Wallet address is not an existing deployed Starknet wallet on this network.');
           return;
         }
@@ -549,6 +570,47 @@ export default function VoteVault() {
     }
   };
 
+  const generateDaoVoteProof = async (support: 'for' | 'against') => {
+    if (!isConnected || !walletAddress) return alert('Connect wallet before generating proof.');
+    if (!privateVotingAddress) return alert('PrivateVoting contract address is missing in frontend env.');
+    if (typeof selectedProposal.contractId !== 'number') return alert('Proposal is not loaded from on-chain data.');
+
+    setIsGeneratingDaoProof(true);
+    try {
+      const configResponse = await provider.callContract({
+        contractAddress: privateVotingAddress,
+        entrypoint: 'get_election_config',
+        calldata: [],
+      });
+      const [electionIdRaw] = toResult(configResponse);
+      const electionId = toField(electionIdRaw || 0);
+      const weight = toField(tokenBalance || 0);
+      if (weight <= BigInt(0)) {
+        alert('Voting power is zero. You need VV Coin balance to generate weighted vote proof.');
+        return;
+      }
+
+      const walletField = toField(walletAddress);
+      const proposalId = toField(BigInt(selectedProposal.contractId));
+      const supportBit = support === 'for' ? BigInt(1) : BigInt(0);
+      const identitySecret = hash2(walletField, electionId);
+      const nullifier = hash3(identitySecret, electionId, proposalId);
+
+      // Demo prover output for the currently deployed MockVerifier (non-empty felt array required).
+      const proofA = hash3(identitySecret, proposalId, supportBit);
+      const proofB = hash3(weight, electionId, walletField);
+
+      setDaoVoteWeight(weight.toString());
+      setDaoVoteNullifier(toHexFelt(nullifier));
+      setDaoVoteProof(`${toHexFelt(proofA)}, ${toHexFelt(proofB)}`);
+    } catch (error) {
+      console.error(error);
+      alert('Proof generation failed. Ensure RPC is reachable and wallet is connected.');
+    } finally {
+      setIsGeneratingDaoProof(false);
+    }
+  };
+
   useEffect(() => {
     if (!privateVotingAddress) return;
     loadOnchainProposals();
@@ -592,11 +654,18 @@ export default function VoteVault() {
         }
 
         const accounts = await injectedWallet.enable();
-        const selectedAddress = (
+        const selectedAddressRaw = (
           injectedWallet.selectedAddress || injectedWallet.account?.address || accounts?.[0] || ''
         ).toLowerCase();
+        const storedCanonical = normalizeHexFelt(storedAddress);
+        const selectedCanonical = selectedAddressRaw ? normalizeHexFelt(selectedAddressRaw) : null;
 
-        if (selectedAddress && selectedAddress !== storedAddress.toLowerCase()) {
+        if (!storedCanonical) {
+          clearWalletSession();
+          return;
+        }
+
+        if (selectedCanonical && selectedCanonical !== storedCanonical) {
           clearWalletSession();
           return;
         }
@@ -604,12 +673,12 @@ export default function VoteVault() {
         if (cancelled) return;
 
         setSelectedWallet(walletType);
-        setWalletAddress(storedAddress);
+        setWalletAddress(storedCanonical);
         setWalletAccount(injectedWallet.account);
         setIsConnected(true);
         setView('dashboard');
-        await loadOnchainProposals(storedAddress);
-        await refreshTokenBalance(storedAddress);
+        await loadOnchainProposals(storedCanonical);
+        await refreshTokenBalance(storedCanonical);
       } catch {
         clearWalletSession();
       }
@@ -1023,6 +1092,35 @@ export default function VoteVault() {
                       </div>
                     ) : !selectedProposal.hasVoted ? (
                       <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            disabled={!isConnected || isGeneratingDaoProof || isSubmittingTx}
+                            onClick={() => generateDaoVoteProof('for')}
+                            className={`py-3 rounded-xl font-black uppercase text-[9px] transition-transform ${
+                              !isConnected || isGeneratingDaoProof || isSubmittingTx
+                                ? 'bg-white/10 text-slate-500 cursor-not-allowed'
+                                : 'bg-[#86e8f8]/20 border border-[#86e8f8]/30 text-[#86e8f8] hover:scale-[1.01]'
+                            }`}
+                          >
+                            {isGeneratingDaoProof ? 'Generating...' : 'Generate Proof For'}
+                          </button>
+                          <button
+                            type="button"
+                            disabled={!isConnected || isGeneratingDaoProof || isSubmittingTx}
+                            onClick={() => generateDaoVoteProof('against')}
+                            className={`py-3 rounded-xl font-black uppercase text-[9px] transition-transform ${
+                              !isConnected || isGeneratingDaoProof || isSubmittingTx
+                                ? 'bg-white/10 text-slate-500 cursor-not-allowed'
+                                : 'bg-red-500/10 border border-red-500/20 text-red-500 hover:scale-[1.01]'
+                            }`}
+                          >
+                            {isGeneratingDaoProof ? 'Generating...' : 'Generate Proof Against'}
+                          </button>
+                        </div>
+                        <p className="text-[9px] uppercase tracking-[0.15em] text-slate-500">
+                          Auto-fills from connected wallet. You can still edit the fields manually.
+                        </p>
                         <input
                           type="number"
                           min="1"
