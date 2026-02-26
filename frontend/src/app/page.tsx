@@ -15,6 +15,7 @@ const rpcUrl =
 const privateVotingAddress = process.env.NEXT_PUBLIC_PRIVATE_VOTING_ADDRESS || '';
 const vvCoinAddressFromEnv = process.env.NEXT_PUBLIC_VV_COIN_ADDRESS || '';
 const FIELD_MOD = BigInt('3618502788666131106986593281521497120414687020801267626233049500247285301239');
+const ONCHAIN_DAO_SUMMARY = 'On-chain DAO proposal stored in VoteVault.';
 
 type WalletName = 'Braavos' | 'Argent X' | 'Starknet Wallet';
 type ProposalStatus = 'Live' | 'Passed' | 'Pending' | 'Rejected';
@@ -285,7 +286,7 @@ export default function VoteVault() {
           id: i + 1,
           contractId: i,
           title: decodedTitle,
-          summary: 'On-chain DAO proposal stored in VoteVault.',
+          summary: ONCHAIN_DAO_SUMMARY,
           motivation: 'Token-weighted governance where voting power is based on VV Coin balance.',
           deadline: deadlineTs > 0 ? new Date(deadlineTs * 1000).toISOString().slice(0, 10) : 'N/A',
           status: resolveStatus(deadlineTs, isOpen, forVotes, againstVotes),
@@ -491,7 +492,39 @@ export default function VoteVault() {
     if (!isConnected) return alert("Connect wallet to vote.");
     if (!walletAccount?.execute) return alert("Connect a Starknet wallet first.");
     if (!privateVotingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
-    if (typeof selectedProposal.contractId !== 'number') return alert("Proposal is not loaded from on-chain data.");
+    const resolveProposalContractId = async (): Promise<number | null> => {
+      if (typeof selectedProposal.contractId === 'number') return selectedProposal.contractId;
+      try {
+        const countResponse = await provider.callContract({
+          contractAddress: privateVotingAddress,
+          entrypoint: 'get_proposal_count',
+          calldata: [],
+        });
+        const count = Number(toBigInt(toResult(countResponse)[0] || 0));
+        if (count === 0) return null;
+
+        // If this card came from on-chain list, infer deterministic id mapping (id = contractId + 1).
+        if (selectedProposal.summary === ONCHAIN_DAO_SUMMARY) {
+          const inferred = selectedProposal.id - 1;
+          if (inferred >= 0 && inferred < count) {
+            setSelectedProposal((prev) => ({ ...prev, contractId: inferred }));
+            setProposals((prev) =>
+              prev.map((proposal) =>
+                proposal.id === selectedProposal.id ? { ...proposal, contractId: inferred } : proposal,
+              ),
+            );
+            return inferred;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to resolve proposal contract id:', error);
+      }
+      return null;
+    };
+    const proposalContractId = await resolveProposalContractId();
+    if (proposalContractId === null) {
+      return alert('This proposal is not synced from on-chain yet. Go back to Dashboard and pick an on-chain DAO proposal.');
+    }
     if (!/^\d+$/.test(daoVoteWeight) || daoVoteWeight === '0') {
       return alert('Enter a valid positive vote weight.');
     }
@@ -512,7 +545,7 @@ export default function VoteVault() {
         contractAddress: privateVotingAddress,
         entrypoint: 'vote_on_proposal',
         calldata: CallData.compile({
-          proposal_id: selectedProposal.contractId,
+          proposal_id: proposalContractId,
           support: type === 'for',
           weight: daoVoteWeight,
           nullifier_hash: daoVoteNullifier.trim(),
@@ -573,7 +606,38 @@ export default function VoteVault() {
   const generateDaoVoteProof = async (support: 'for' | 'against') => {
     if (!isConnected || !walletAddress) return alert('Connect wallet before generating proof.');
     if (!privateVotingAddress) return alert('PrivateVoting contract address is missing in frontend env.');
-    if (typeof selectedProposal.contractId !== 'number') return alert('Proposal is not loaded from on-chain data.');
+    const resolveProposalContractId = async (): Promise<number | null> => {
+      if (typeof selectedProposal.contractId === 'number') return selectedProposal.contractId;
+      try {
+        const countResponse = await provider.callContract({
+          contractAddress: privateVotingAddress,
+          entrypoint: 'get_proposal_count',
+          calldata: [],
+        });
+        const count = Number(toBigInt(toResult(countResponse)[0] || 0));
+        if (count === 0) return null;
+
+        if (selectedProposal.summary === ONCHAIN_DAO_SUMMARY) {
+          const inferred = selectedProposal.id - 1;
+          if (inferred >= 0 && inferred < count) {
+            setSelectedProposal((prev) => ({ ...prev, contractId: inferred }));
+            setProposals((prev) =>
+              prev.map((proposal) =>
+                proposal.id === selectedProposal.id ? { ...proposal, contractId: inferred } : proposal,
+              ),
+            );
+            return inferred;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to resolve proposal contract id:', error);
+      }
+      return null;
+    };
+    const proposalContractId = await resolveProposalContractId();
+    if (proposalContractId === null) {
+      return alert('This proposal is not synced from on-chain yet. Go back to Dashboard and pick an on-chain DAO proposal.');
+    }
 
     setIsGeneratingDaoProof(true);
     try {
@@ -591,7 +655,7 @@ export default function VoteVault() {
       }
 
       const walletField = toField(walletAddress);
-      const proposalId = toField(BigInt(selectedProposal.contractId));
+      const proposalId = toField(BigInt(proposalContractId));
       const supportBit = support === 'for' ? BigInt(1) : BigInt(0);
       const identitySecret = hash2(walletField, electionId);
       const nullifier = hash3(identitySecret, electionId, proposalId);
