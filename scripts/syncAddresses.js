@@ -43,6 +43,7 @@ function main() {
 
   const privateVoting = env.CONTRACTS_PRIVATE_VOTING_ADDRESS;
   const mockVerifier = env.CONTRACTS_MOCK_VERIFIER_ADDRESS;
+  const vvCoin = env.CONTRACTS_VV_COIN_ADDRESS;
   if (!privateVoting || !mockVerifier) {
     throw new Error(
       'Missing CONTRACTS_PRIVATE_VOTING_ADDRESS or CONTRACTS_MOCK_VERIFIER_ADDRESS in .env'
@@ -61,6 +62,14 @@ function main() {
     description: 'Verifier contract used by PrivateVoting',
     address: mockVerifier,
   });
+  if (vvCoin) {
+    upsertAddress(entries, {
+      id: 'pv-vv-coin',
+      name: 'VV Coin',
+      description: 'VoteVault governance token',
+      address: vvCoin,
+    });
+  }
 
   fs.writeFileSync(addressBookPath, JSON.stringify(entries, null, 2) + '\n');
   console.log('Address book updated:', addressBookPath);

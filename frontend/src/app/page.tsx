@@ -1,6 +1,6 @@
-// 
 "use client";
-import React, { useState, useMemo } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { CallData, RpcProvider, shortString } from 'starknet';
 import { 
   Lock, LayoutDashboard, Menu, X as CloseIcon,
   MessageSquare, 
@@ -8,6 +8,101 @@ import {
   ChevronLeft, Copy, ChevronDown, CheckCircle2,
   Plus, ShieldCheck, Zap, Globe, Database, Share2, EyeOff, Clock, Ban, Shield, Calendar, Send, Mail, ArrowUpRight, Fingerprint, UserCheck,Sun,Moon
 } from 'lucide-react';
+
+const rpcUrl =
+  process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
+  'https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10';
+const privateVotingAddress = process.env.NEXT_PUBLIC_PRIVATE_VOTING_ADDRESS || '';
+const vvCoinAddressFromEnv = process.env.NEXT_PUBLIC_VV_COIN_ADDRESS || '';
+
+type WalletName = 'Braavos' | 'Argent X' | 'Starknet Wallet';
+type ProposalStatus = 'Live' | 'Passed' | 'Pending' | 'Rejected';
+
+type Proposal = {
+  id: number;
+  contractId?: number;
+  title: string;
+  summary: string;
+  motivation?: string;
+  deadline: string;
+  status: ProposalStatus;
+  forVotes: number;
+  againstVotes: number;
+  voters: number;
+  hasVoted: boolean;
+  tag: string;
+  quorum: number;
+};
+
+type InjectedStarknetWallet = {
+  enable: (options?: unknown) => Promise<string[]>;
+  selectedAddress?: string;
+  account?: {
+    address?: string;
+    execute?: (calls: unknown) => Promise<{ transaction_hash?: string; transactionHash?: string }>;
+  };
+};
+
+const CONNECT_WALLETS: Array<{ name: WalletName; logo: string; desc: string }> = [
+  {
+    name: 'Braavos',
+    logo: 'https://raw.githubusercontent.com/starknet-io/starknet-assets/main/wallets/braavos.svg',
+    desc: 'Starknet Smart Wallet',
+  },
+  {
+    name: 'Argent X',
+    logo: 'https://raw.githubusercontent.com/starknet-io/starknet-assets/main/wallets/argent-x.svg',
+    desc: 'The Gateway to Starknet',
+  },
+  {
+    name: 'Starknet Wallet',
+    logo: '/starknetlogo.svg',
+    desc: 'Starknet Browser Wallet',
+  },
+];
+
+const DEFAULT_PROPOSALS: Proposal[] = [
+  {
+    id: 1,
+    title: "Increase Validator Rewards by 15%",
+    summary: "Adjusting validator staking rewards to ensure network liveness.",
+    motivation: "Validator count has dropped by 12% over the last quarter.",
+    deadline: "2026-03-15",
+    status: "Live",
+    forVotes: 15650,
+    againstVotes: 4200,
+    voters: 847,
+    hasVoted: false,
+    tag: "Technical",
+    quorum: 42
+  },
+  {
+    id: 2,
+    title: "Strategic Treasury Diversification",
+    summary: "Moving protocol reserves into stETH for better yield.",
+    deadline: "2026-02-28",
+    status: "Pending",
+    forVotes: 0,
+    againstVotes: 0,
+    voters: 0,
+    hasVoted: false,
+    tag: "Treasury",
+    quorum: 15
+  },
+  {
+    id: 3,
+    title: "Global Ambassador Program",
+    summary: "Marketing budget for regional adoption leads.",
+    deadline: "2026-01-10",
+    status: "Passed",
+    forVotes: 25000,
+    againstVotes: 1200,
+    voters: 1100,
+    hasVoted: false,
+    tag: "Community",
+    quorum: 65
+  }
+];
 
 export default function VoteVault() {
    // --- THEME STATE ---
@@ -23,7 +118,7 @@ export default function VoteVault() {
 
   const faqs = [
     { q: "Is my vote really anonymous?", a: "Yes. Using Zero-Knowledge Proofs, we verify your right to vote without revealing your identity or wallet address." },
-    { q: "What wallets are supported?", a: "We currently support Argent X, Braavos, and MetaMask via Snaps." },
+    { q: "What wallets are supported?", a: "We currently support Argent X, Braavos, and Starknet Wallet." },
     { q: "How are results verified?", a: "All results are settled on-chain where the cryptographic proof can be audited by anyone." }
   ];
   // --- CORE DATA ---
@@ -48,58 +143,17 @@ export default function VoteVault() {
   const [showWalletModal, setShowWalletModal] = useState(false);
   const [selectedWallet, setSelectedWallet] = useState<string | null>(null);
   const [walletAddress, setWalletAddress] = useState('');
+  const [isVerifyingWallet, setIsVerifyingWallet] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
+  const [walletAccount, setWalletAccount] = useState<InjectedStarknetWallet['account'] | null>(null);
+  const [tokenAddress, setTokenAddress] = useState(vvCoinAddressFromEnv);
+  const [tokenBalance, setTokenBalance] = useState('0');
+  const [isSubmittingTx, setIsSubmittingTx] = useState(false);
   const [adminAuthInput, setAdminAuthInput] = useState('');
+  const provider = useMemo(() => new RpcProvider({ nodeUrl: rpcUrl }), []);
 
   // --- PROPOSALS DATA STATE ---
-  const [proposals, setProposals] = useState([
-    { 
-      id: 1, title: "Increase Validator Rewards by 15%", 
-      summary: "Adjusting validator staking rewards to ensure network liveness.",
-      motivation: "Validator count has dropped by 12% over the last quarter.",
-      deadline: "2026-03-15", status: "Live", forVotes: 15650, againstVotes: 4200, voters: 847, hasVoted: false, tag: "Technical", quorum: 42
-    },
-    { 
-      id: 2, title: "Strategic Treasury Diversification", 
-      summary: "Moving protocol reserves into stETH for better yield.", 
-      deadline: "2026-02-28", status: "Pending", forVotes: 0, againstVotes: 0, voters: 0, hasVoted: false, tag: "Treasury", quorum: 15 
-    },
-    { 
-      id: 3, title: "Global Ambassador Program", 
-      summary: "Marketing budget for regional adoption leads.", 
-      deadline: "2026-01-10", status: "Passed", forVotes: 25000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
-    },
-    { 
-      id: 4, title: "Global colleteral Program", 
-      summary: "colleteral budget for regional adoption leads.", 
-      deadline: "2026-01-10", status: "Rejected", forVotes: 20000, againstVotes: 12000, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
-    },
-    { 
-      id: 5, title: "W-dex Program", 
-      summary: "adoption for leads.", 
-      deadline: "2026-01-10", status: "Passed", forVotes: 25000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
-    },
-    { 
-      id: 6, title: "W-dex Program", 
-      summary: "adoption for leads.", 
-      deadline: "2026-01-10", status: "Passed", forVotes: 22000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
-    },
-    { 
-      id: 7, title: "W-dex Program", 
-      summary: "adoption for leads.", 
-      deadline: "2026-01-10", status: "Passed", forVotes: 24000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
-    },
-    { 
-      id: 8, title: "W-dex Program", 
-      summary: "adoption for leads.", 
-      deadline: "2026-01-10", status: "Passed", forVotes: 21000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
-    },
-    { 
-      id: 9, title: "W-dex Program", 
-      summary: "adoption for leads.", 
-      deadline: "2026-01-10", status: "Passed", forVotes: 27000, againstVotes: 1200, voters: 1100, hasVoted: false, tag: "Community", quorum: 65 
-    }
-  ]);
+  const [proposals, setProposals] = useState<Proposal[]>(DEFAULT_PROPOSALS);
 
   const [selectedProposal, setSelectedProposal] = useState(proposals[0]);
 
@@ -109,8 +163,132 @@ export default function VoteVault() {
   const [formMotivation, setFormMotivation] = useState('');
   const [formDeadline, setFormDeadline] = useState('');
   const [formTag, setFormTag] = useState('Technical');
+  const [mintRecipient, setMintRecipient] = useState('');
+  const [mintAmount, setMintAmount] = useState('');
 
   // --- LOGIC & HELPERS ---
+  const toResult = (response: unknown): string[] => {
+    if (Array.isArray(response)) return response.map(String);
+    if (response && typeof response === 'object' && 'result' in response && Array.isArray((response as { result: unknown[] }).result)) {
+      return (response as { result: unknown[] }).result.map(String);
+    }
+    return [];
+  };
+
+  const toBigInt = (value: unknown) => BigInt(String(value));
+
+  const resolveStatus = (deadlineTs: number, isOpen: boolean, forVotes: number, againstVotes: number): ProposalStatus => {
+    const now = Math.floor(Date.now() / 1000);
+    if (isOpen && now <= deadlineTs) return 'Live';
+    if (now <= deadlineTs) return 'Pending';
+    return forVotes >= againstVotes ? 'Passed' : 'Rejected';
+  };
+
+  const resolveTokenAddress = async () => {
+    if (tokenAddress) return tokenAddress;
+    if (!privateVotingAddress) return '';
+    const response = await provider.callContract({
+      contractAddress: privateVotingAddress,
+      entrypoint: 'get_token_address',
+      calldata: [],
+    });
+    const result = toResult(response);
+    const found = result[0] || '';
+    if (found) setTokenAddress(found);
+    return found;
+  };
+
+  const waitForTx = async (tx: { transaction_hash?: string; transactionHash?: string }) => {
+    const hash = tx.transaction_hash || tx.transactionHash;
+    if (!hash) throw new Error('Missing transaction hash from wallet response.');
+    await provider.waitForTransaction(hash);
+    return hash;
+  };
+
+  const refreshTokenBalance = async (addressToCheck?: string) => {
+    const accountToCheck = addressToCheck || walletAddress;
+    if (!accountToCheck) return;
+    const coinAddress = await resolveTokenAddress();
+    if (!coinAddress) return;
+    const response = await provider.callContract({
+      contractAddress: coinAddress,
+      entrypoint: 'balance_of',
+      calldata: CallData.compile({ account: accountToCheck }),
+    });
+    const result = toResult(response);
+    setTokenBalance((toBigInt(result[0] || 0)).toString());
+  };
+
+  const loadOnchainProposals = async (addressToCheck?: string) => {
+    if (!privateVotingAddress) return;
+    try {
+      const countResponse = await provider.callContract({
+        contractAddress: privateVotingAddress,
+        entrypoint: 'get_proposal_count',
+        calldata: [],
+      });
+      const count = Number(toBigInt(toResult(countResponse)[0] || 0));
+      if (count === 0) return;
+
+      const user = addressToCheck || walletAddress;
+      const onchain: Proposal[] = [];
+      for (let i = 0; i < count; i += 1) {
+        const proposalResponse = await provider.callContract({
+          contractAddress: privateVotingAddress,
+          entrypoint: 'get_proposal',
+          calldata: CallData.compile({ proposal_id: i }),
+        });
+        const proposalResult = toResult(proposalResponse);
+        const titleFelt = proposalResult[0] || '0x0';
+        const deadlineTs = Number(toBigInt(proposalResult[1] || 0));
+        const isOpen = toBigInt(proposalResult[2] || 0) === BigInt(1);
+        const forVotes = Number(toBigInt(proposalResult[3] || 0));
+        const againstVotes = Number(toBigInt(proposalResult[4] || 0));
+
+        let decodedTitle = `Proposal #${i + 1}`;
+        try {
+          decodedTitle = shortString.decodeShortString(titleFelt);
+        } catch {
+          decodedTitle = `Proposal #${i + 1}`;
+        }
+
+        let hasVoted = false;
+        if (user && /^0x[a-fA-F0-9]{1,64}$/.test(user)) {
+          const votedResponse = await provider.callContract({
+            contractAddress: privateVotingAddress,
+            entrypoint: 'has_voted_proposal',
+            calldata: CallData.compile({ proposal_id: i, voter: user }),
+          });
+          hasVoted = toBigInt(toResult(votedResponse)[0] || 0) === BigInt(1);
+        }
+
+        const totalVotes = forVotes + againstVotes;
+        onchain.push({
+          id: i + 1,
+          contractId: i,
+          title: decodedTitle,
+          summary: 'On-chain DAO proposal stored in VoteVault.',
+          motivation: 'Token-weighted governance where voting power is based on VV Coin balance.',
+          deadline: deadlineTs > 0 ? new Date(deadlineTs * 1000).toISOString().slice(0, 10) : 'N/A',
+          status: resolveStatus(deadlineTs, isOpen, forVotes, againstVotes),
+          forVotes,
+          againstVotes,
+          voters: totalVotes,
+          hasVoted,
+          tag: 'DAO',
+          quorum: totalVotes > 0 ? Math.min(100, Math.round((totalVotes / 1000) * 100)) : 0,
+        });
+      }
+
+      const sorted = [...onchain].sort((a, b) => b.id - a.id);
+      setProposals(sorted);
+      const selectedFromFresh = sorted.find((p) => p.id === selectedProposal.id) || sorted[0];
+      if (selectedFromFresh) setSelectedProposal(selectedFromFresh);
+    } catch (error) {
+      console.error('Failed to load on-chain proposals:', error);
+    }
+  };
+
   const filteredProposals = useMemo(() => {
     return proposals.filter(p => {
       const matchesSearch = p.title.toLowerCase().includes(searchQuery.toLowerCase());
@@ -135,15 +313,73 @@ export default function VoteVault() {
   };
 
   // --- ACTIONS ---
-  const handleConnect = () => {
+  const handleConnect = async () => {
+    if (!selectedWallet) return alert("Please select a Starknet wallet.");
     const normalizedAddress = walletAddress.trim();
-    if (!/^0x[a-fA-F0-9]{8,}$/.test(normalizedAddress)) {
+    if (!/^0x[a-fA-F0-9]{1,64}$/.test(normalizedAddress)) {
       return alert("Please enter a valid wallet address starting with 0x.");
     }
+
+    setIsVerifyingWallet(true);
+    try {
+      await provider.getClassHashAt(normalizedAddress);
+      const contractClass = await provider.getClassAt(normalizedAddress);
+      const abiContent = JSON.stringify(contractClass).toLowerCase();
+
+      const walletType = selectedWallet as WalletName;
+      if (walletType === 'Braavos' && !abiContent.includes('braavos')) {
+        alert('The address exists but does not match a Braavos wallet account.');
+        return;
+      }
+      if (walletType === 'Argent X' && !abiContent.includes('argent')) {
+        alert('The address exists but does not match an Argent X wallet account.');
+        return;
+      }
+
+      const browserWallets = window as Window & {
+        starknet?: InjectedStarknetWallet;
+        starknet_braavos?: InjectedStarknetWallet;
+        starknet_argentX?: InjectedStarknetWallet;
+      };
+      const injectedWallet =
+        walletType === 'Braavos'
+          ? browserWallets.starknet_braavos
+          : walletType === 'Argent X'
+            ? browserWallets.starknet_argentX
+            : browserWallets.starknet;
+
+      if (!injectedWallet?.enable) {
+        alert('Selected wallet extension was not detected in this browser.');
+        return;
+      }
+
+      const accounts = await injectedWallet.enable();
+      const selectedAddress = (
+        injectedWallet.selectedAddress || injectedWallet.account?.address || accounts?.[0] || ''
+      ).toLowerCase();
+      if (selectedAddress && selectedAddress !== normalizedAddress.toLowerCase()) {
+        alert('The entered wallet address does not match the selected wallet extension account.');
+        return;
+      }
+
+      if (!injectedWallet.account?.execute) {
+        alert('Connected wallet account does not expose execute(). Please reconnect with Argent X or Braavos.');
+        return;
+      }
+      setWalletAccount(injectedWallet.account);
+    } catch {
+      alert('Wallet address is not an existing deployed Starknet wallet on this network.');
+      return;
+    } finally {
+      setIsVerifyingWallet(false);
+    }
+
     setWalletAddress(normalizedAddress);
     setIsConnected(true);
     setShowWalletModal(false);
     setView('dashboard');
+    await loadOnchainProposals(normalizedAddress);
+    await refreshTokenBalance(normalizedAddress);
   };
 
   const handleAdminAuth = () => {
@@ -155,50 +391,121 @@ export default function VoteVault() {
     }
   };
 
-  const handlePublishProposal = (e: React.FormEvent) => {
+  const handlePublishProposal = async (e: React.FormEvent) => {
     e.preventDefault();
     if(!formTitle || !formSummary || !formDeadline) return alert("Please fill in all required fields.");
-    
+    if (!walletAccount?.execute) return alert("Connect a Starknet wallet first.");
+    if (!privateVotingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
+    if (formTitle.length > 31) return alert("Proposal title must be 31 characters or fewer (felt252 short string).");
+
     const selectedDate = new Date(formDeadline);
     const today = new Date();
     today.setHours(0,0,0,0);
-    
+
     if (selectedDate < today) {
       return alert("Error: The voting deadline cannot be in the past.");
     }
-    
-    const newP = {
-      id: proposals.length + 1,
-      title: formTitle,
-      summary: formSummary,
-      motivation: formMotivation,
-      deadline: formDeadline,
-      status: "Live",
-      forVotes: 0, againstVotes: 0, voters: 0, hasVoted: false, tag: formTag, quorum: 0
-    };
-    
-    setProposals([newP, ...proposals]);
-    setView('dashboard');
-    setFormTitle(''); setFormSummary(''); setFormMotivation(''); setFormDeadline('');
+
+    const deadlineTs = Math.floor(new Date(`${formDeadline}T23:59:59Z`).getTime() / 1000);
+    setIsSubmittingTx(true);
+    try {
+      const tx = await walletAccount.execute({
+        contractAddress: privateVotingAddress,
+        entrypoint: 'create_proposal',
+        calldata: CallData.compile({
+          title: shortString.encodeShortString(formTitle),
+          deadline: deadlineTs,
+        }),
+      });
+      await waitForTx(tx);
+      await loadOnchainProposals(walletAddress);
+      setView('dashboard');
+      setFormTitle('');
+      setFormSummary('');
+      setFormMotivation('');
+      setFormDeadline('');
+      alert('Proposal created on-chain.');
+    } catch (error) {
+      console.error(error);
+      alert('Proposal creation failed. Ensure connected wallet is the contract admin and has gas.');
+    } finally {
+      setIsSubmittingTx(false);
+    }
   };
 
-  const handleVote = (type: 'for' | 'against') => {
+  const handleVote = async (type: 'for' | 'against') => {
     if (selectedProposal.hasVoted || selectedProposal.status !== 'Live') return;
-    const updated = proposals.map(p => {
-      if (p.id === selectedProposal.id) {
-        return { 
-          ...p, 
-          forVotes: type === 'for' ? p.forVotes + 1000 : p.forVotes, 
-          againstVotes: type === 'against' ? p.againstVotes + 1000 : p.againstVotes, 
-          voters: p.voters + 1, hasVoted: true 
-        };
-      }
-      return p;
-    });
-    setProposals(updated);
-    const updatedP = updated.find(p => p.id === selectedProposal.id);
-    if(updatedP) setSelectedProposal(updatedP);
+    if (!isConnected) return alert("Connect wallet to vote.");
+    if (!walletAccount?.execute) return alert("Connect a Starknet wallet first.");
+    if (!privateVotingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
+    if (typeof selectedProposal.contractId !== 'number') return alert("Proposal is not loaded from on-chain data.");
+
+    setIsSubmittingTx(true);
+    try {
+      const tx = await walletAccount.execute({
+        contractAddress: privateVotingAddress,
+        entrypoint: 'vote_on_proposal',
+        calldata: CallData.compile({
+          proposal_id: selectedProposal.contractId,
+          support: type === 'for',
+        }),
+      });
+      await waitForTx(tx);
+      await loadOnchainProposals(walletAddress);
+      await refreshTokenBalance(walletAddress);
+      alert('Vote submitted on-chain.');
+    } catch (error) {
+      console.error(error);
+      alert('Vote failed. Check voting power, deadline, and whether you already voted.');
+    } finally {
+      setIsSubmittingTx(false);
+    }
   };
+
+  const handleMintTokens = async () => {
+    if (!isAdminAuthenticated) return alert('Admin auth required.');
+    if (!walletAccount?.execute) return alert('Connect a Starknet wallet first.');
+    if (!/^0x[a-fA-F0-9]{1,64}$/.test(mintRecipient.trim())) return alert('Enter a valid recipient wallet address.');
+    if (!/^\d+$/.test(mintAmount) || mintAmount === '0') return alert('Enter a valid positive token amount.');
+
+    const coinAddress = await resolveTokenAddress();
+    if (!coinAddress) return alert('VV Coin address not found.');
+
+    setIsSubmittingTx(true);
+    try {
+      const tx = await walletAccount.execute({
+        contractAddress: coinAddress,
+        entrypoint: 'mint',
+        calldata: CallData.compile({
+          to: mintRecipient.trim(),
+          amount: mintAmount,
+        }),
+      });
+      await waitForTx(tx);
+      await refreshTokenBalance(walletAddress);
+      setMintRecipient('');
+      setMintAmount('');
+      alert('VV Coin minted successfully.');
+    } catch (error) {
+      console.error(error);
+      alert('Mint failed. Ensure connected wallet is VV Coin admin.');
+    } finally {
+      setIsSubmittingTx(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!privateVotingAddress) return;
+    loadOnchainProposals();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [privateVotingAddress]);
+
+  useEffect(() => {
+    if (!isConnected || !walletAddress) return;
+    loadOnchainProposals(walletAddress);
+    refreshTokenBalance(walletAddress);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isConnected, walletAddress]);
 
   
   return (
@@ -236,7 +543,7 @@ export default function VoteVault() {
             <button onClick={() => {setView('dashboard'); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase transition-colors ${view === 'dashboard' ? 'bg-white/5 text-white' : 'hover:bg-white/5'}`}><LayoutDashboard size={18}/> Dashboard</button>
             <button className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase hover:bg-white/5"><Shield size={18}/> Audit Logs</button>
           </nav>
-          <button onClick={() => {setIsConnected(false); setWalletAddress(''); setView('landing'); setIsSidebarOpen(false);}} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/5 transition-colors"><LogOut size={18}/> Disconnect</button>
+          <button onClick={() => {setIsConnected(false); setWalletAddress(''); setWalletAccount(null); setTokenBalance('0'); setView('landing'); setIsSidebarOpen(false);}} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/5 transition-colors"><LogOut size={18}/> Disconnect</button>
         </div>
       </div>
 
@@ -257,7 +564,7 @@ export default function VoteVault() {
           {isWalletDropdownOpen && (
             <div className="absolute right-0 mt-4 w-52 md:w-60 bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl p-2 z-[300]">
               <button onClick={() => {navigator.clipboard.writeText(walletAddress); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 rounded-xl text-[10px] font-bold uppercase text-slate-300"><Copy size={14}/> Copy Address</button>
-              <button onClick={() => {setIsConnected(false); setWalletAddress(''); setView('landing'); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-500/10 text-red-500 rounded-xl text-[10px] font-bold uppercase"><LogOut size={14}/> Disconnect</button>
+              <button onClick={() => {setIsConnected(false); setWalletAddress(''); setWalletAccount(null); setTokenBalance('0'); setView('landing'); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-500/10 text-red-500 rounded-xl text-[10px] font-bold uppercase"><LogOut size={14}/> Disconnect</button>
             </div>
           )}
         </div>
@@ -476,8 +783,16 @@ export default function VoteVault() {
                   <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Summary</label>
                   <textarea value={formSummary} onChange={e=>setFormSummary(e.target.value)} rows={3} className="w-full bg-black/40 border border-white/10 rounded-xl p-4 md:p-5 text-white outline-none resize-none" required />
                 </div>
-                <button type="submit" className="w-full bg-[#86e8f8] text-black py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest flex items-center justify-center gap-3">Publish Proposal</button>
+                <button type="submit" disabled={isSubmittingTx} className={`w-full py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest flex items-center justify-center gap-3 ${isSubmittingTx ? 'bg-white/10 text-slate-500 cursor-not-allowed' : 'bg-[#86e8f8] text-black'}`}>{isSubmittingTx ? 'Publishing...' : 'Publish Proposal'}</button>
              </form>
+
+             <div className="mt-8 space-y-4 bg-[#0d1117] p-8 md:p-10 rounded-[2rem] border border-white/10">
+               <h3 className="text-white font-black uppercase text-sm tracking-widest">Mint VV Coin</h3>
+               <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em]">Admin Distribution</p>
+               <input value={mintRecipient} onChange={e => setMintRecipient(e.target.value)} type="text" placeholder="Recipient wallet address" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white outline-none" />
+               <input value={mintAmount} onChange={e => setMintAmount(e.target.value)} type="number" min="1" placeholder="Amount" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white outline-none" />
+               <button type="button" onClick={handleMintTokens} disabled={isSubmittingTx} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest ${isSubmittingTx ? 'bg-white/10 text-slate-500 cursor-not-allowed' : 'bg-amber-500 text-black'}`}>{isSubmittingTx ? 'Processing...' : 'Mint Tokens'}</button>
+             </div>
           </div>
         )}
 
@@ -586,16 +901,17 @@ export default function VoteVault() {
                       </div>
                     ) : !selectedProposal.hasVoted ? (
                       <div className="space-y-3">
-                        <button onClick={() => handleVote('for')} className="w-full bg-[#86e8f8] text-black py-4 rounded-xl font-black uppercase text-[10px] hover:scale-[1.02] transition-transform">Vote For</button>
-                        <button onClick={() => handleVote('against')} className="w-full bg-red-500/10 text-red-500 py-4 rounded-xl font-black uppercase text-[10px] border border-red-500/20">Vote Against</button>
+                        <button disabled={isSubmittingTx || !isConnected} onClick={() => handleVote('for')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] transition-transform ${isSubmittingTx || !isConnected ? 'bg-white/10 text-slate-500 cursor-not-allowed' : 'bg-[#86e8f8] text-black hover:scale-[1.02]'}`}>{isSubmittingTx ? 'Submitting...' : 'Vote For'}</button>
+                        <button disabled={isSubmittingTx || !isConnected} onClick={() => handleVote('against')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] border ${isSubmittingTx || !isConnected ? 'bg-white/10 text-slate-500 cursor-not-allowed border-white/10' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>Vote Against</button>
                       </div>
                     ) : (
                       <div className="py-6 border-2 border-green-500/20 rounded-2xl text-green-500 font-black uppercase text-[10px] flex flex-col items-center gap-2 bg-green-500/5">
                         <CheckCircle2 size={24}/> Vote Submitted
                       </div>
                     )}
+                    <p className="text-center text-[9px] font-black uppercase text-[#86e8f8] mt-4 tracking-[0.2em]">Voting Power: {tokenBalance} VV</p>
                     <p className="text-center text-[8px] font-bold uppercase opacity-30 mt-6 tracking-widest">
-                      {selectedProposal.status === 'Live' ? 'Wallet connected can vote' : 'This proposal is no longer active'}
+                      {selectedProposal.status === 'Live' ? (isConnected ? 'Wallet connected can vote' : 'Connect wallet to vote') : 'This proposal is no longer active'}
                     </p>
                   </div>
 
@@ -711,11 +1027,7 @@ export default function VoteVault() {
                 <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter mb-10 text-center italic">Connect Identity</h3>
                 
                 <div className="grid gap-4">
-                  {[
-                    { name: 'Braavos', logo: 'https://raw.githubusercontent.com/starknet-io/starknet-assets/main/wallets/braavos.svg', desc: 'Starknet Smart Wallet' },
-                    { name: 'Argent X', logo: 'https://raw.githubusercontent.com/starknet-io/starknet-assets/main/wallets/argent-x.svg', desc: 'The Gateway to Starknet' },
-                    { name: 'MetaMask', logo: 'https://raw.githubusercontent.com/MetaMask/brand-resources/master/SVG/metamask-fox.svg', desc: 'Ethereum & L2 Gateway' }
-                  ].map(w => (
+                  {CONNECT_WALLETS.map(w => (
                     <button 
                       key={w.name} 
                       onClick={() => setSelectedWallet(w.name)} 
@@ -760,10 +1072,10 @@ export default function VoteVault() {
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Enter wallet address to connect</p>
                       <button
                         onClick={handleConnect}
-                        disabled={!/^0x[a-fA-F0-9]{8,}$/.test(walletAddress.trim())}
-                        className={`w-full py-6 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${/^0x[a-fA-F0-9]{8,}$/.test(walletAddress.trim()) ? 'bg-[#86e8f8] text-black scale-105 shadow-lg shadow-[#86e8f8]/20' : 'bg-white/5 text-slate-600 cursor-not-allowed'}`}
+                        disabled={isVerifyingWallet || !/^0x[a-fA-F0-9]{1,64}$/.test(walletAddress.trim())}
+                        className={`w-full py-6 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${!isVerifyingWallet && /^0x[a-fA-F0-9]{1,64}$/.test(walletAddress.trim()) ? 'bg-[#86e8f8] text-black scale-105 shadow-lg shadow-[#86e8f8]/20' : 'bg-white/5 text-slate-600 cursor-not-allowed'}`}
                       >
-                        Confirm Access
+                        {isVerifyingWallet ? 'Verifying Wallet...' : 'Confirm Access'}
                       </button>
                     </div>
                  </div>

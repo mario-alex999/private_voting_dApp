@@ -27,7 +27,8 @@
     "dev": "next dev",
     "test": "node --test",
     "start-backend": "cd backend && npm run dev",
-    "start-frontend": "cd frontend && npm run dev"
+    "start-frontend": "cd frontend && npm run dev",
+    "deploy-votevault": "node scripts/onchain/deployVoteVault.js"
 
   },
   "repository": {

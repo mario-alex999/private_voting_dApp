@@ -31,11 +31,27 @@ trait IPrivateVoting<TContractState> {
     fn get_voting_window(self: @TContractState) -> (u64, u64);
     fn is_paused(self: @TContractState) -> bool;
     fn get_admin(self: @TContractState) -> ContractAddress;
+
+    fn create_proposal(ref self: TContractState, title: felt252, deadline: u64) -> u64;
+    fn close_proposal(ref self: TContractState, proposal_id: u64);
+    fn vote_on_proposal(ref self: TContractState, proposal_id: u64, support: bool);
+    fn get_token_address(self: @TContractState) -> ContractAddress;
+    fn get_proposal_count(self: @TContractState) -> u64;
+    fn get_proposal(self: @TContractState, proposal_id: u64) -> (felt252, u64, bool, u128, u128);
+    fn has_voted_proposal(self: @TContractState, proposal_id: u64, voter: ContractAddress) -> bool;
 }
 
 #[starknet::interface]
 trait IMockVerifier<TContractState> {
     fn set_result(ref self: TContractState, next: bool);
+}
+
+#[starknet::interface]
+trait IVVCoin<TContractState> {
+    fn mint(ref self: TContractState, to: ContractAddress, amount: u128);
+    fn transfer(ref self: TContractState, to: ContractAddress, amount: u128);
+    fn balance_of(self: @TContractState, account: ContractAddress) -> u128;
+    fn get_total_supply(self: @TContractState) -> u128;
 }
 
 fn deploy_mock_verifier(initial_result: bool) -> ContractAddress {
@@ -48,12 +64,24 @@ fn deploy_mock_verifier(initial_result: bool) -> ContractAddress {
     address
 }
 
-fn deploy_private_voting(verifier: ContractAddress, admin: ContractAddress) -> IPrivateVotingDispatcher {
+fn deploy_vv_coin(admin: ContractAddress, initial_holder: ContractAddress, initial_supply: u128) -> ContractAddress {
+    let class = match declare("VVCoin").unwrap() {
+        DeclareResult::Success(class) => class,
+        DeclareResult::AlreadyDeclared(class) => class,
+    };
+    let calldata = array![admin.into(), initial_holder.into(), initial_supply.into()];
+    let (address, _) = class.deploy(@calldata).unwrap();
+    address
+}
+
+fn deploy_private_voting(
+    verifier: ContractAddress, admin: ContractAddress, token: ContractAddress,
+) -> IPrivateVotingDispatcher {
     let class = match declare("PrivateVoting").unwrap() {
         DeclareResult::Success(class) => class,
         DeclareResult::AlreadyDeclared(class) => class,
     };
-    let calldata = array![verifier.into(), admin.into()];
+    let calldata = array![verifier.into(), admin.into(), token.into()];
     let (address, _) = class.deploy(@calldata).unwrap();
     IPrivateVotingDispatcher { contract_address: address }
 }
@@ -62,7 +90,8 @@ fn deploy_private_voting(verifier: ContractAddress, admin: ContractAddress) -> I
 fn test_open_voting_sets_config() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
 
     voting.open_voting(202501, 999, 10, 20);
     let (election_id, merkle_root, open) = voting.get_election_config();
@@ -80,7 +109,8 @@ fn test_open_voting_sets_config() {
 fn test_open_voting_reverts_for_non_admin() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
     let other: ContractAddress = 0x123.try_into().unwrap();
 
     start_cheat_caller_address(voting.contract_address, other);
@@ -92,7 +122,8 @@ fn test_open_voting_reverts_for_non_admin() {
 fn test_close_voting_reverts_for_non_admin() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
     let other: ContractAddress = 0x124.try_into().unwrap();
 
     start_cheat_caller_address(voting.contract_address, other);
@@ -104,7 +135,8 @@ fn test_close_voting_reverts_for_non_admin() {
 fn test_update_root_reverts_for_non_admin() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
     let other: ContractAddress = 0x125.try_into().unwrap();
 
     start_cheat_caller_address(voting.contract_address, other);
@@ -116,7 +148,8 @@ fn test_update_root_reverts_for_non_admin() {
 fn test_set_paused_reverts_for_non_admin() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
     let other: ContractAddress = 0x126.try_into().unwrap();
 
     start_cheat_caller_address(voting.contract_address, other);
@@ -128,7 +161,8 @@ fn test_set_paused_reverts_for_non_admin() {
 fn test_rotate_admin_reverts_for_non_admin() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
     let other: ContractAddress = 0x127.try_into().unwrap();
     let new_admin: ContractAddress = 0x128.try_into().unwrap();
 
@@ -140,7 +174,8 @@ fn test_rotate_admin_reverts_for_non_admin() {
 fn test_cast_vote_success_updates_state() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
 
     voting.open_voting(77, 1234, 0, 18446744073709551615_u64);
 
@@ -156,7 +191,8 @@ fn test_cast_vote_success_updates_state() {
 fn test_rotate_admin_updates_value() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
     let new_admin: ContractAddress = 0x999.try_into().unwrap();
 
     voting.rotate_admin(new_admin);
@@ -168,7 +204,8 @@ fn test_rotate_admin_updates_value() {
 fn test_cast_vote_reverts_when_paused() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
 
     voting.open_voting(9, 9, 0, 18446744073709551615_u64);
     voting.set_paused(true);
@@ -180,7 +217,8 @@ fn test_cast_vote_reverts_when_paused() {
 fn test_cast_vote_reverts_before_start_time() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
 
     start_cheat_block_timestamp_global(5);
     voting.open_voting(9, 9, 10, 20);
@@ -192,7 +230,8 @@ fn test_cast_vote_reverts_before_start_time() {
 fn test_cast_vote_reverts_after_end_time() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
 
     start_cheat_block_timestamp_global(50);
     voting.open_voting(9, 9, 10, 20);
@@ -204,10 +243,35 @@ fn test_cast_vote_reverts_after_end_time() {
 fn test_cast_vote_reverts_when_closed() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
 
     let proof = array![1];
     voting.cast_vote(1, 2, proof);
+}
+
+#[test]
+#[should_panic(expected: ('MISSING_PROOF',))]
+fn test_cast_vote_reverts_without_proof() {
+    let admin = test_address();
+    let verifier = deploy_mock_verifier(true);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
+
+    voting.open_voting(1, 2, 0, 18446744073709551615_u64);
+    voting.cast_vote(10, 20, array![]);
+}
+
+#[test]
+#[should_panic(expected: ('INVALID_NULLIFIER',))]
+fn test_cast_vote_reverts_with_zero_nullifier() {
+    let admin = test_address();
+    let verifier = deploy_mock_verifier(true);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
+
+    voting.open_voting(1, 2, 0, 18446744073709551615_u64);
+    voting.cast_vote(0, 20, array![1]);
 }
 
 #[test]
@@ -215,7 +279,8 @@ fn test_cast_vote_reverts_when_closed() {
 fn test_cast_vote_reverts_on_invalid_proof() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(false);
-    let voting = deploy_private_voting(verifier, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier, admin, token);
 
     voting.open_voting(1, 2, 0, 18446744073709551615_u64);
     let proof = array![1, 2];
@@ -228,7 +293,8 @@ fn test_cast_vote_reverts_on_nullifier_reuse() {
     let admin = test_address();
     let verifier_address = deploy_mock_verifier(true);
     let verifier = IMockVerifierDispatcher { contract_address: verifier_address };
-    let voting = deploy_private_voting(verifier_address, admin);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier_address, admin, token);
 
     voting.open_voting(300, 400, 0, 18446744073709551615_u64);
 
@@ -238,4 +304,99 @@ fn test_cast_vote_reverts_on_nullifier_reuse() {
 
     let proof2 = array![4];
     voting.cast_vote(999, 222, proof2);
+}
+
+#[test]
+fn test_weighted_proposal_vote_counts_by_balance() {
+    let admin = test_address();
+    let verifier = deploy_mock_verifier(true);
+    let token_address = deploy_vv_coin(admin, admin, 0);
+    let token = IVVCoinDispatcher { contract_address: token_address };
+    let voting = deploy_private_voting(verifier, admin, token_address);
+
+    let voter_a: ContractAddress = 0x111.try_into().unwrap();
+    let voter_b: ContractAddress = 0x112.try_into().unwrap();
+    token.mint(voter_a, 100);
+    token.mint(voter_b, 300);
+
+    start_cheat_block_timestamp_global(100);
+    let proposal_id = voting.create_proposal('UPGRADE', 200);
+
+    start_cheat_caller_address(voting.contract_address, voter_a);
+    voting.vote_on_proposal(proposal_id, true);
+    start_cheat_caller_address(voting.contract_address, voter_b);
+    voting.vote_on_proposal(proposal_id, false);
+
+    let (_, _, _, for_votes, against_votes) = voting.get_proposal(proposal_id);
+    assert(for_votes == 100, 'BAD_FOR_WEIGHT');
+    assert(against_votes == 300, 'BAD_AGAINST_WEIGHT');
+    assert(voting.has_voted_proposal(proposal_id, voter_a), 'MISSING_VOTER_A');
+    assert(voting.has_voted_proposal(proposal_id, voter_b), 'MISSING_VOTER_B');
+}
+
+#[test]
+#[should_panic(expected: ('NO_VOTING_POWER',))]
+fn test_vote_on_proposal_reverts_without_tokens() {
+    let admin = test_address();
+    let verifier = deploy_mock_verifier(true);
+    let token_address = deploy_vv_coin(admin, admin, 0);
+    let voting = deploy_private_voting(verifier, admin, token_address);
+
+    start_cheat_block_timestamp_global(100);
+    let proposal_id = voting.create_proposal('CHANGE_1', 200);
+    let voter: ContractAddress = 0x222.try_into().unwrap();
+
+    start_cheat_caller_address(voting.contract_address, voter);
+    voting.vote_on_proposal(proposal_id, true);
+}
+
+#[test]
+#[should_panic(expected: ('ALREADY_VOTED',))]
+fn test_vote_on_proposal_reverts_on_double_vote() {
+    let admin = test_address();
+    let verifier = deploy_mock_verifier(true);
+    let token_address = deploy_vv_coin(admin, admin, 0);
+    let token = IVVCoinDispatcher { contract_address: token_address };
+    let voting = deploy_private_voting(verifier, admin, token_address);
+
+    start_cheat_block_timestamp_global(100);
+    let proposal_id = voting.create_proposal('CHANGE_2', 300);
+    let voter: ContractAddress = 0x333.try_into().unwrap();
+    token.mint(voter, 50);
+
+    start_cheat_caller_address(voting.contract_address, voter);
+    voting.vote_on_proposal(proposal_id, true);
+    voting.vote_on_proposal(proposal_id, false);
+}
+
+#[test]
+#[should_panic(expected: ('NOT_ADMIN',))]
+fn test_create_proposal_reverts_for_non_admin() {
+    let admin = test_address();
+    let verifier = deploy_mock_verifier(true);
+    let token_address = deploy_vv_coin(admin, admin, 0);
+    let voting = deploy_private_voting(verifier, admin, token_address);
+    let other: ContractAddress = 0x444.try_into().unwrap();
+
+    start_cheat_caller_address(voting.contract_address, other);
+    voting.create_proposal('NOT_ALLOWED', 999);
+}
+
+#[test]
+#[should_panic(expected: ('PROPOSAL_ENDED',))]
+fn test_vote_on_proposal_reverts_after_deadline() {
+    let admin = test_address();
+    let verifier = deploy_mock_verifier(true);
+    let token_address = deploy_vv_coin(admin, admin, 0);
+    let token = IVVCoinDispatcher { contract_address: token_address };
+    let voting = deploy_private_voting(verifier, admin, token_address);
+
+    start_cheat_block_timestamp_global(100);
+    let proposal_id = voting.create_proposal('EXPIRED', 101);
+    let voter: ContractAddress = 0x555.try_into().unwrap();
+    token.mint(voter, 10);
+
+    start_cheat_block_timestamp_global(200);
+    start_cheat_caller_address(voting.contract_address, voter);
+    voting.vote_on_proposal(proposal_id, true);
 }
