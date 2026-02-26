@@ -29,13 +29,10 @@ VoteVault is a Starknet voting dApp that combines:
   - `INVALID_WEIGHT`
 - Proposal deadline and open-state are enforced.
 
-### 3) Wallet UX/security updates
+3) Wallet UX/security 
 - Wallet connect requires Starknet-compatible addresses.
 - Frontend blocks voting actions when wallet is not connected.
-- Wallet session persists across refresh (does not auto-disconnect or fall back to landing page).
-- Argent X and Braavos logos now use official wallet images stored locally:
-  - `frontend/public/wallets/argent-x.svg`
-  - `frontend/public/wallets/braavos.svg`
+  
 
 ## Contracts
 - `contracts/src/private_voting.cairo`: private voting + DAO proposal voting
