@@ -34,24 +34,23 @@ trait IPrivateVoting<TContractState> {
 
     fn create_proposal(ref self: TContractState, title: felt252, deadline: u64) -> u64;
     fn close_proposal(ref self: TContractState, proposal_id: u64);
-    fn vote_on_proposal(ref self: TContractState, proposal_id: u64, support: bool);
+    fn vote_on_proposal(
+        ref self: TContractState,
+        proposal_id: u64,
+        support: bool,
+        weight: u128,
+        nullifier_hash: felt252,
+        proof: Array<felt252>,
+    );
     fn get_token_address(self: @TContractState) -> ContractAddress;
     fn get_proposal_count(self: @TContractState) -> u64;
     fn get_proposal(self: @TContractState, proposal_id: u64) -> (felt252, u64, bool, u128, u128);
-    fn has_voted_proposal(self: @TContractState, proposal_id: u64, voter: ContractAddress) -> bool;
+    fn has_voted_proposal(self: @TContractState, proposal_id: u64, nullifier_hash: felt252) -> bool;
 }
 
 #[starknet::interface]
 trait IMockVerifier<TContractState> {
     fn set_result(ref self: TContractState, next: bool);
-}
-
-#[starknet::interface]
-trait IVVCoin<TContractState> {
-    fn mint(ref self: TContractState, to: ContractAddress, amount: u128);
-    fn transfer(ref self: TContractState, to: ContractAddress, amount: u128);
-    fn balance_of(self: @TContractState, account: ContractAddress) -> u128;
-    fn get_total_supply(self: @TContractState) -> u128;
 }
 
 fn deploy_mock_verifier(initial_result: bool) -> ContractAddress {
@@ -311,32 +310,24 @@ fn test_weighted_proposal_vote_counts_by_balance() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
     let token_address = deploy_vv_coin(admin, admin, 0);
-    let token = IVVCoinDispatcher { contract_address: token_address };
     let voting = deploy_private_voting(verifier, admin, token_address);
-
-    let voter_a: ContractAddress = 0x111.try_into().unwrap();
-    let voter_b: ContractAddress = 0x112.try_into().unwrap();
-    token.mint(voter_a, 100);
-    token.mint(voter_b, 300);
 
     start_cheat_block_timestamp_global(100);
     let proposal_id = voting.create_proposal('UPGRADE', 200);
 
-    start_cheat_caller_address(voting.contract_address, voter_a);
-    voting.vote_on_proposal(proposal_id, true);
-    start_cheat_caller_address(voting.contract_address, voter_b);
-    voting.vote_on_proposal(proposal_id, false);
+    voting.vote_on_proposal(proposal_id, true, 100, 1001, array![1, 2, 3]);
+    voting.vote_on_proposal(proposal_id, false, 300, 1002, array![4, 5, 6]);
 
     let (_, _, _, for_votes, against_votes) = voting.get_proposal(proposal_id);
     assert(for_votes == 100, 'BAD_FOR_WEIGHT');
     assert(against_votes == 300, 'BAD_AGAINST_WEIGHT');
-    assert(voting.has_voted_proposal(proposal_id, voter_a), 'MISSING_VOTER_A');
-    assert(voting.has_voted_proposal(proposal_id, voter_b), 'MISSING_VOTER_B');
+    assert(voting.has_voted_proposal(proposal_id, 1001), 'MISSING_NULLIFIER_A');
+    assert(voting.has_voted_proposal(proposal_id, 1002), 'MISSING_NULLIFIER_B');
 }
 
 #[test]
-#[should_panic(expected: ('NO_VOTING_POWER',))]
-fn test_vote_on_proposal_reverts_without_tokens() {
+#[should_panic(expected: ('INVALID_WEIGHT',))]
+fn test_vote_on_proposal_reverts_with_zero_weight() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
     let token_address = deploy_vv_coin(admin, admin, 0);
@@ -344,29 +335,47 @@ fn test_vote_on_proposal_reverts_without_tokens() {
 
     start_cheat_block_timestamp_global(100);
     let proposal_id = voting.create_proposal('CHANGE_1', 200);
-    let voter: ContractAddress = 0x222.try_into().unwrap();
-
-    start_cheat_caller_address(voting.contract_address, voter);
-    voting.vote_on_proposal(proposal_id, true);
+    voting.vote_on_proposal(proposal_id, true, 0, 2024, array![7]);
 }
 
 #[test]
-#[should_panic(expected: ('ALREADY_VOTED',))]
-fn test_vote_on_proposal_reverts_on_double_vote() {
+#[should_panic(expected: ('NULLIFIER_USED',))]
+fn test_vote_on_proposal_reverts_on_nullifier_reuse() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
     let token_address = deploy_vv_coin(admin, admin, 0);
-    let token = IVVCoinDispatcher { contract_address: token_address };
     let voting = deploy_private_voting(verifier, admin, token_address);
 
     start_cheat_block_timestamp_global(100);
     let proposal_id = voting.create_proposal('CHANGE_2', 300);
-    let voter: ContractAddress = 0x333.try_into().unwrap();
-    token.mint(voter, 50);
+    voting.vote_on_proposal(proposal_id, true, 50, 5555, array![8]);
+    voting.vote_on_proposal(proposal_id, false, 75, 5555, array![9]);
+}
 
-    start_cheat_caller_address(voting.contract_address, voter);
-    voting.vote_on_proposal(proposal_id, true);
-    voting.vote_on_proposal(proposal_id, false);
+#[test]
+#[should_panic(expected: ('MISSING_PROOF',))]
+fn test_vote_on_proposal_reverts_without_proof() {
+    let admin = test_address();
+    let verifier = deploy_mock_verifier(true);
+    let token_address = deploy_vv_coin(admin, admin, 0);
+    let voting = deploy_private_voting(verifier, admin, token_address);
+
+    start_cheat_block_timestamp_global(100);
+    let proposal_id = voting.create_proposal('CHANGE_3', 300);
+    voting.vote_on_proposal(proposal_id, true, 25, 7001, array![]);
+}
+
+#[test]
+#[should_panic(expected: ('INVALID_PROOF',))]
+fn test_vote_on_proposal_reverts_on_invalid_proof() {
+    let admin = test_address();
+    let verifier = deploy_mock_verifier(false);
+    let token_address = deploy_vv_coin(admin, admin, 0);
+    let voting = deploy_private_voting(verifier, admin, token_address);
+
+    start_cheat_block_timestamp_global(100);
+    let proposal_id = voting.create_proposal('CHANGE_4', 300);
+    voting.vote_on_proposal(proposal_id, true, 25, 7002, array![12, 13]);
 }
 
 #[test]
@@ -388,15 +397,10 @@ fn test_vote_on_proposal_reverts_after_deadline() {
     let admin = test_address();
     let verifier = deploy_mock_verifier(true);
     let token_address = deploy_vv_coin(admin, admin, 0);
-    let token = IVVCoinDispatcher { contract_address: token_address };
     let voting = deploy_private_voting(verifier, admin, token_address);
 
     start_cheat_block_timestamp_global(100);
     let proposal_id = voting.create_proposal('EXPIRED', 101);
-    let voter: ContractAddress = 0x555.try_into().unwrap();
-    token.mint(voter, 10);
-
     start_cheat_block_timestamp_global(200);
-    start_cheat_caller_address(voting.contract_address, voter);
-    voting.vote_on_proposal(proposal_id, true);
+    voting.vote_on_proposal(proposal_id, true, 10, 9998, array![11]);
 }

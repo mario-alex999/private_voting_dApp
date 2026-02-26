@@ -61,6 +61,8 @@ const CONNECT_WALLETS: Array<{ name: WalletName; logo: string; desc: string }> =
   },
 ];
 
+const WALLET_SESSION_KEY = 'votevault_wallet_session_v1';
+
 const DEFAULT_PROPOSALS: Proposal[] = [
   {
     id: 1,
@@ -165,6 +167,9 @@ export default function VoteVault() {
   const [formTag, setFormTag] = useState('Technical');
   const [mintRecipient, setMintRecipient] = useState('');
   const [mintAmount, setMintAmount] = useState('');
+  const [daoVoteWeight, setDaoVoteWeight] = useState('');
+  const [daoVoteNullifier, setDaoVoteNullifier] = useState('');
+  const [daoVoteProof, setDaoVoteProof] = useState('');
 
   // --- LOGIC & HELPERS ---
   const toResult = (response: unknown): string[] => {
@@ -230,7 +235,6 @@ export default function VoteVault() {
       const count = Number(toBigInt(toResult(countResponse)[0] || 0));
       if (count === 0) return;
 
-      const user = addressToCheck || walletAddress;
       const onchain: Proposal[] = [];
       for (let i = 0; i < count; i += 1) {
         const proposalResponse = await provider.callContract({
@@ -252,16 +256,6 @@ export default function VoteVault() {
           decodedTitle = `Proposal #${i + 1}`;
         }
 
-        let hasVoted = false;
-        if (user && /^0x[a-fA-F0-9]{1,64}$/.test(user)) {
-          const votedResponse = await provider.callContract({
-            contractAddress: privateVotingAddress,
-            entrypoint: 'has_voted_proposal',
-            calldata: CallData.compile({ proposal_id: i, voter: user }),
-          });
-          hasVoted = toBigInt(toResult(votedResponse)[0] || 0) === BigInt(1);
-        }
-
         const totalVotes = forVotes + againstVotes;
         onchain.push({
           id: i + 1,
@@ -274,7 +268,7 @@ export default function VoteVault() {
           forVotes,
           againstVotes,
           voters: totalVotes,
-          hasVoted,
+          hasVoted: false,
           tag: 'DAO',
           quorum: totalVotes > 0 ? Math.min(100, Math.round((totalVotes / 1000) * 100)) : 0,
         });
@@ -310,6 +304,29 @@ export default function VoteVault() {
       case 'Rejected': return 'bg-red-500/10 text-red-500 border-red-500/20';
       default: return 'bg-white/5 text-slate-400 border-white/10';
     }
+  };
+
+  const persistWalletSession = (walletType: WalletName, address: string) => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(
+      WALLET_SESSION_KEY,
+      JSON.stringify({ walletType, walletAddress: address }),
+    );
+  };
+
+  const clearWalletSession = () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(WALLET_SESSION_KEY);
+  };
+
+  const disconnectWallet = () => {
+    clearWalletSession();
+    setIsConnected(false);
+    setWalletAddress('');
+    setWalletAccount(null);
+    setTokenBalance('0');
+    setSelectedWallet(null);
+    setView('landing');
   };
 
   // --- ACTIONS ---
@@ -378,6 +395,7 @@ export default function VoteVault() {
     setIsConnected(true);
     setShowWalletModal(false);
     setView('dashboard');
+    persistWalletSession(selectedWallet as WalletName, normalizedAddress);
     await loadOnchainProposals(normalizedAddress);
     await refreshTokenBalance(normalizedAddress);
   };
@@ -439,6 +457,19 @@ export default function VoteVault() {
     if (!walletAccount?.execute) return alert("Connect a Starknet wallet first.");
     if (!privateVotingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
     if (typeof selectedProposal.contractId !== 'number') return alert("Proposal is not loaded from on-chain data.");
+    if (!/^\d+$/.test(daoVoteWeight) || daoVoteWeight === '0') {
+      return alert('Enter a valid positive vote weight.');
+    }
+    if (!/^(0x[a-fA-F0-9]{1,64}|\d+)$/.test(daoVoteNullifier.trim())) {
+      return alert('Enter a valid nullifier (decimal or 0x felt).');
+    }
+    const proofFelts = daoVoteProof
+      .split(',')
+      .map((item) => item.trim())
+      .filter((item) => item.length > 0);
+    if (proofFelts.length === 0) {
+      return alert('Enter at least one proof felt.');
+    }
 
     setIsSubmittingTx(true);
     try {
@@ -448,15 +479,25 @@ export default function VoteVault() {
         calldata: CallData.compile({
           proposal_id: selectedProposal.contractId,
           support: type === 'for',
+          weight: daoVoteWeight,
+          nullifier_hash: daoVoteNullifier.trim(),
+          proof: proofFelts,
         }),
       });
       await waitForTx(tx);
       await loadOnchainProposals(walletAddress);
       await refreshTokenBalance(walletAddress);
+      setDaoVoteProof('');
+      setProposals((prev) =>
+        prev.map((proposal) =>
+          proposal.id === selectedProposal.id ? { ...proposal, hasVoted: true } : proposal,
+        ),
+      );
+      setSelectedProposal((prev) => ({ ...prev, hasVoted: true }));
       alert('Vote submitted on-chain.');
     } catch (error) {
       console.error(error);
-      alert('Vote failed. Check voting power, deadline, and whether you already voted.');
+      alert('Vote failed. Check proof validity, nullifier uniqueness, and proposal deadline.');
     } finally {
       setIsSubmittingTx(false);
     }
@@ -501,6 +542,73 @@ export default function VoteVault() {
   }, [privateVotingAddress]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const restoreSession = async () => {
+      if (typeof window === 'undefined') return;
+      const raw = localStorage.getItem(WALLET_SESSION_KEY);
+      if (!raw) return;
+
+      try {
+        const parsed = JSON.parse(raw) as { walletType?: WalletName; walletAddress?: string };
+        const walletType = parsed.walletType;
+        const storedAddress = (parsed.walletAddress || '').trim();
+
+        if (!walletType || !/^0x[a-fA-F0-9]{1,64}$/.test(storedAddress)) {
+          clearWalletSession();
+          return;
+        }
+
+        const browserWallets = window as Window & {
+          starknet?: InjectedStarknetWallet;
+          starknet_braavos?: InjectedStarknetWallet;
+          starknet_argentX?: InjectedStarknetWallet;
+        };
+
+        const injectedWallet =
+          walletType === 'Braavos'
+            ? browserWallets.starknet_braavos
+            : walletType === 'Argent X'
+              ? browserWallets.starknet_argentX
+              : browserWallets.starknet;
+
+        if (!injectedWallet?.enable || !injectedWallet.account?.execute) {
+          clearWalletSession();
+          return;
+        }
+
+        const accounts = await injectedWallet.enable();
+        const selectedAddress = (
+          injectedWallet.selectedAddress || injectedWallet.account?.address || accounts?.[0] || ''
+        ).toLowerCase();
+
+        if (selectedAddress && selectedAddress !== storedAddress.toLowerCase()) {
+          clearWalletSession();
+          return;
+        }
+
+        if (cancelled) return;
+
+        setSelectedWallet(walletType);
+        setWalletAddress(storedAddress);
+        setWalletAccount(injectedWallet.account);
+        setIsConnected(true);
+        setView('dashboard');
+        await loadOnchainProposals(storedAddress);
+        await refreshTokenBalance(storedAddress);
+      } catch {
+        clearWalletSession();
+      }
+    };
+
+    restoreSession();
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
     if (!isConnected || !walletAddress) return;
     loadOnchainProposals(walletAddress);
     refreshTokenBalance(walletAddress);
@@ -543,7 +651,7 @@ export default function VoteVault() {
             <button onClick={() => {setView('dashboard'); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase transition-colors ${view === 'dashboard' ? 'bg-white/5 text-white' : 'hover:bg-white/5'}`}><LayoutDashboard size={18}/> Dashboard</button>
             <button className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase hover:bg-white/5"><Shield size={18}/> Audit Logs</button>
           </nav>
-          <button onClick={() => {setIsConnected(false); setWalletAddress(''); setWalletAccount(null); setTokenBalance('0'); setView('landing'); setIsSidebarOpen(false);}} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/5 transition-colors"><LogOut size={18}/> Disconnect</button>
+          <button onClick={() => {disconnectWallet(); setIsSidebarOpen(false);}} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/5 transition-colors"><LogOut size={18}/> Disconnect</button>
         </div>
       </div>
 
@@ -564,7 +672,7 @@ export default function VoteVault() {
           {isWalletDropdownOpen && (
             <div className="absolute right-0 mt-4 w-52 md:w-60 bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl p-2 z-[300]">
               <button onClick={() => {navigator.clipboard.writeText(walletAddress); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 rounded-xl text-[10px] font-bold uppercase text-slate-300"><Copy size={14}/> Copy Address</button>
-              <button onClick={() => {setIsConnected(false); setWalletAddress(''); setWalletAccount(null); setTokenBalance('0'); setView('landing'); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-500/10 text-red-500 rounded-xl text-[10px] font-bold uppercase"><LogOut size={14}/> Disconnect</button>
+              <button onClick={() => {disconnectWallet(); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-500/10 text-red-500 rounded-xl text-[10px] font-bold uppercase"><LogOut size={14}/> Disconnect</button>
             </div>
           )}
         </div>
@@ -901,6 +1009,28 @@ export default function VoteVault() {
                       </div>
                     ) : !selectedProposal.hasVoted ? (
                       <div className="space-y-3">
+                        <input
+                          type="number"
+                          min="1"
+                          value={daoVoteWeight}
+                          onChange={(e) => setDaoVoteWeight(e.target.value)}
+                          placeholder="Private vote weight"
+                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white outline-none text-xs"
+                        />
+                        <input
+                          type="text"
+                          value={daoVoteNullifier}
+                          onChange={(e) => setDaoVoteNullifier(e.target.value)}
+                          placeholder="Nullifier (0x... or decimal)"
+                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white outline-none text-xs font-mono"
+                        />
+                        <textarea
+                          value={daoVoteProof}
+                          onChange={(e) => setDaoVoteProof(e.target.value)}
+                          placeholder="Proof felts (comma separated)"
+                          rows={3}
+                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white outline-none text-xs font-mono resize-none"
+                        />
                         <button disabled={isSubmittingTx || !isConnected} onClick={() => handleVote('for')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] transition-transform ${isSubmittingTx || !isConnected ? 'bg-white/10 text-slate-500 cursor-not-allowed' : 'bg-[#86e8f8] text-black hover:scale-[1.02]'}`}>{isSubmittingTx ? 'Submitting...' : 'Vote For'}</button>
                         <button disabled={isSubmittingTx || !isConnected} onClick={() => handleVote('against')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] border ${isSubmittingTx || !isConnected ? 'bg-white/10 text-slate-500 cursor-not-allowed border-white/10' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>Vote Against</button>
                       </div>

@@ -1,5 +1,3 @@
-use starknet::ContractAddress;
-
 #[starknet::interface]
 pub trait IProofVerifier<TContractState> {
     fn verify_proof(
@@ -7,11 +5,6 @@ pub trait IProofVerifier<TContractState> {
         proof: Array<felt252>,
         public_inputs: Array<felt252>,
     ) -> bool;
-}
-
-#[starknet::interface]
-pub trait IVVCoin<TContractState> {
-    fn balance_of(self: @TContractState, account: ContractAddress) -> u128;
 }
 
 #[starknet::contract]
@@ -23,8 +16,6 @@ mod PrivateVoting {
 
     use super::IProofVerifierDispatcher;
     use super::IProofVerifierDispatcherTrait;
-    use super::IVVCoinDispatcher;
-    use super::IVVCoinDispatcherTrait;
 
     #[storage]
     struct Storage {
@@ -46,7 +37,7 @@ mod PrivateVoting {
         proposal_open: Map<u64, bool>,
         proposal_for_votes: Map<u64, u128>,
         proposal_against_votes: Map<u64, u128>,
-        proposal_has_voted: Map<(u64, ContractAddress), bool>,
+        proposal_used_nullifier: Map<(u64, felt252), bool>,
     }
 
     #[event]
@@ -107,9 +98,9 @@ mod PrivateVoting {
     #[derive(Drop, starknet::Event)]
     struct ProposalVoted {
         proposal_id: u64,
-        voter: ContractAddress,
         support: bool,
         weight: u128,
+        nullifier_hash: felt252,
     }
 
     #[derive(Drop, starknet::Event)]
@@ -216,18 +207,43 @@ mod PrivateVoting {
     }
 
     #[external(v0)]
-    fn vote_on_proposal(ref self: ContractState, proposal_id: u64, support: bool) {
+    fn vote_on_proposal(
+        ref self: ContractState,
+        proposal_id: u64,
+        support: bool,
+        weight: u128,
+        nullifier_hash: felt252,
+        proof: Array<felt252>,
+    ) {
         assert(proposal_id < self.proposal_count.read(), 'INVALID_PROPOSAL');
         assert(self.proposal_open.read(proposal_id), 'PROPOSAL_CLOSED');
         let now = get_block_timestamp();
         assert(now <= self.proposal_deadline.read(proposal_id), 'PROPOSAL_ENDED');
+        assert(weight > 0, 'INVALID_WEIGHT');
+        assert(nullifier_hash != 0, 'INVALID_NULLIFIER');
+        assert(proof.len() > 0, 'MISSING_PROOF');
+        assert(
+            !self.proposal_used_nullifier.read((proposal_id, nullifier_hash)),
+            'NULLIFIER_USED',
+        );
 
-        let voter = get_caller_address();
-        assert(!self.proposal_has_voted.read((proposal_id, voter)), 'ALREADY_VOTED');
+        let mut public_inputs = array![];
+        public_inputs.append(self.election_id.read());
+        public_inputs.append(self.merkle_root.read());
+        public_inputs.append(proposal_id.into());
+        if support {
+            public_inputs.append(1);
+        } else {
+            public_inputs.append(0);
+        };
+        public_inputs.append(weight.into());
+        public_inputs.append(nullifier_hash);
 
-        let vv_dispatcher = IVVCoinDispatcher { contract_address: self.vv_coin.read() };
-        let weight = vv_dispatcher.balance_of(voter);
-        assert(weight > 0, 'NO_VOTING_POWER');
+        let verifier_dispatcher = IProofVerifierDispatcher {
+            contract_address: self.verifier.read(),
+        };
+        let ok = verifier_dispatcher.verify_proof(proof, public_inputs);
+        assert(ok, 'INVALID_PROOF');
 
         if support {
             let current_for = self.proposal_for_votes.read(proposal_id);
@@ -237,8 +253,8 @@ mod PrivateVoting {
             self.proposal_against_votes.write(proposal_id, current_against + weight);
         }
 
-        self.proposal_has_voted.write((proposal_id, voter), true);
-        self.emit(ProposalVoted { proposal_id, voter, support, weight });
+        self.proposal_used_nullifier.write((proposal_id, nullifier_hash), true);
+        self.emit(ProposalVoted { proposal_id, support, weight, nullifier_hash });
     }
 
     #[external(v0)]
@@ -339,7 +355,7 @@ mod PrivateVoting {
     }
 
     #[external(v0)]
-    fn has_voted_proposal(self: @ContractState, proposal_id: u64, voter: ContractAddress) -> bool {
-        self.proposal_has_voted.read((proposal_id, voter))
+    fn has_voted_proposal(self: @ContractState, proposal_id: u64, nullifier_hash: felt252) -> bool {
+        self.proposal_used_nullifier.read((proposal_id, nullifier_hash))
     }
 }

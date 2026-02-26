@@ -30,6 +30,14 @@ function voteCommitment(vote, voteBlinding, electionId) {
   return hash3(vote, voteBlinding, electionId);
 }
 
+function tokenBalanceLeaf(identitySecret, tokenBalance, electionId) {
+  return hash3(identitySecret, tokenBalance, electionId);
+}
+
+function proposalNullifierHash(identitySecret, electionId, proposalId) {
+  return hash3(identitySecret, electionId, proposalId);
+}
+
 function buildMerkleTree(leaves, depth = 20) {
   if (leaves.length === 0) throw new Error('at least one leaf is required');
   const zeroLeaf = 0n;
@@ -106,6 +114,53 @@ function buildCircuitInputs({ identitySecret, electionId, vote, voteBlinding, tr
   };
 }
 
+function buildTokenWeightedCircuitInputs({
+  identitySecret,
+  electionId,
+  proposalId,
+  support,
+  tokenBalance,
+  weight,
+  tree,
+  leafIndex,
+}) {
+  const secret = toField(identitySecret);
+  const election = toField(electionId);
+  const proposal = toField(proposalId);
+  const supportBit = BigInt(support);
+  if (supportBit !== 0n && supportBit !== 1n) {
+    throw new Error('support must be 0 or 1');
+  }
+
+  const balance = toField(tokenBalance);
+  const weightField = toField(weight);
+  if (weightField !== balance) {
+    throw new Error('weight must equal token balance for this circuit');
+  }
+
+  const leaf = tokenBalanceLeaf(secret, balance, election);
+  const { path, indexBits } = buildMerkleProof(tree, leafIndex);
+  const nullifier = proposalNullifierHash(secret, election, proposal);
+
+  return {
+    publicInputs: {
+      election_id: election,
+      merkle_root: tree.root,
+      proposal_id: proposal,
+      support: supportBit,
+      weight: weightField,
+      nullifier_hash: nullifier,
+    },
+    privateInputs: {
+      identity_secret: secret,
+      token_balance: balance,
+      voter_leaf: leaf,
+      path,
+      index_bits: indexBits,
+    },
+  };
+}
+
 function mockCircuitVerify({ publicInputs, privateInputs }) {
   const {
     election_id: electionId,
@@ -121,6 +176,32 @@ function mockCircuitVerify({ publicInputs, privateInputs }) {
   if (leaf !== voterLeaf(secret, electionId)) return false;
   if (pubNullifier !== nullifierHash(secret, electionId)) return false;
   if (pubCommitment !== voteCommitment(vote, blinding, electionId)) return false;
+  return true;
+}
+
+function mockTokenWeightedCircuitVerify({ publicInputs, privateInputs }) {
+  const {
+    election_id: electionId,
+    merkle_root: merkleRoot,
+    proposal_id: proposalId,
+    support,
+    weight,
+    nullifier_hash: pubNullifier,
+  } = publicInputs;
+
+  const {
+    identity_secret: secret,
+    token_balance: balance,
+    voter_leaf: leaf,
+    path,
+    index_bits: indexBits,
+  } = privateInputs;
+
+  if (support !== 0n && support !== 1n) return false;
+  if (!verifyMerklePath(leaf, merkleRoot, path, indexBits)) return false;
+  if (leaf !== tokenBalanceLeaf(secret, balance, electionId)) return false;
+  if (weight !== balance) return false;
+  if (pubNullifier !== proposalNullifierHash(secret, electionId, proposalId)) return false;
   return true;
 }
 
@@ -151,10 +232,14 @@ module.exports = {
   voterLeaf,
   nullifierHash,
   voteCommitment,
+  tokenBalanceLeaf,
+  proposalNullifierHash,
   buildMerkleTree,
   buildMerkleProof,
   verifyMerklePath,
   buildCircuitInputs,
+  buildTokenWeightedCircuitInputs,
   mockCircuitVerify,
+  mockTokenWeightedCircuitVerify,
   VotingState,
 };

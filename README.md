@@ -19,14 +19,19 @@ VoteVault is a Starknet voting dApp that combines:
 
 ### 2) DAO governance (token-weighted)
 - Proposals are created on-chain by admin.
-- Voting weight is `VV Coin` balance (`balance_of(voter)`).
-- One address can vote once per proposal (`ALREADY_VOTED`).
-- Zero token balance cannot vote (`NO_VOTING_POWER`).
+- DAO vote submission is proof-based: `vote_on_proposal(proposal_id, support, weight, nullifier_hash, proof)`.
+- Token weight is verified through ZK public inputs (`weight`) against the eligibility/snapshot Merkle root.
+- Duplicate nullifier per proposal is rejected: `NULLIFIER_USED`.
+- Invalid proof / missing proof / invalid weight are rejected:
+  - `INVALID_PROOF`
+  - `MISSING_PROOF`
+  - `INVALID_WEIGHT`
 - Proposal deadline and open-state are enforced.
 
 ### 3) Wallet UX/security updates
 - Wallet connect requires Starknet-compatible addresses.
 - Frontend blocks voting actions when wallet is not connected.
+- Wallet session persists across refresh (does not auto-disconnect or fall back to landing page).
 - Argent X and Braavos logos now use official wallet images stored locally:
   - `frontend/public/wallets/argent-x.svg`
   - `frontend/public/wallets/braavos.svg`
@@ -39,8 +44,10 @@ VoteVault is a Starknet voting dApp that combines:
 
 ## Repository layout
 - `circuits/private_vote.nr`: Noir circuit source
+- `circuits/private_token_weighted_vote.nr`: Noir circuit for private token-weighted DAO vote proofs
 - `scripts/onchain/deployVoteVault.js`: declares/deploys contracts and writes addresses
 - `scripts/onchain/smokeTest.js`: optional on-chain smoke flow
+- `scripts/public_inputs_order.md`: required verifier public-input ordering
 - `frontend/src/app/page.tsx`: main dApp UI and Starknet interactions
 - `frontend/public/address-book.json`: deployed address map for UI
 
@@ -87,5 +94,5 @@ node scripts/syncAddresses.js
 - `NEXT_PUBLIC_VV_COIN_ADDRESS`
 
 ## Current verification status
-- Contract integration tests: `21/21` passing (`snforge test`)
+- Contract integration tests: `23/23` passing (`snforge test`)
 - Frontend production build: passing (`next build`)
