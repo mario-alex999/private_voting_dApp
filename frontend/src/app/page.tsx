@@ -9,11 +9,43 @@ import {
   Plus, ShieldCheck, Zap, Globe, Database, Share2, EyeOff, Clock, Ban, Shield, Calendar, Send, Mail, ArrowUpRight, Fingerprint, UserCheck,Sun,Moon
 } from 'lucide-react';
 
-const rpcUrl =
-  process.env.NEXT_PUBLIC_STARKNET_RPC_URL ||
-  'https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10';
-const privateVotingAddress = process.env.NEXT_PUBLIC_PRIVATE_VOTING_ADDRESS || '';
-const vvCoinAddressFromEnv = process.env.NEXT_PUBLIC_VV_COIN_ADDRESS || '';
+const cleanEnv = (value?: string) =>
+  (value || '')
+    .replace(/\\r/g, '')
+    .replace(/\\n/g, '')
+    .trim()
+    .replace(/^['"]|['"]$/g, '')
+    .trim();
+
+const normalizeRpcUrl = (value?: string) => {
+  let out = cleanEnv(value);
+  if (out.startsWith('ttps://')) out = `h${out}`;
+  if (out.startsWith('http//')) out = out.replace('http//', 'http://');
+  if (out.startsWith('https//')) out = out.replace('https//', 'https://');
+  if (!/^https?:\/\//i.test(out) && out.includes('starknet-sepolia.g.alchemy.com')) {
+    out = `https://${out}`;
+  }
+  return out;
+};
+const isLikelyRpcUrl = (value: string) => /^https?:\/\/.+/i.test(value);
+const isLikelyStarknetAddress = (value: string) => /^0x[a-fA-F0-9]{1,64}$/.test(value);
+
+const DEFAULT_SEPOLIA_RPC = 'https://starknet-sepolia.g.alchemy.com/starknet/version/rpc/v0_10/demo';
+const configuredRpcUrl = normalizeRpcUrl(
+  process.env.NEXT_PUBLIC_STARKNET_RPC_URL || process.env.RPC_URL_SEPOLIA || DEFAULT_SEPOLIA_RPC,
+);
+const buildRpcCandidates = (url: string) => {
+  const normalized = normalizeRpcUrl(url);
+  const out = [normalized];
+  if (normalized.includes('/rpc/v0_10/')) out.push(normalized.replace('/rpc/v0_10/', '/rpc/v0_8/'));
+  if (normalized.endsWith('/rpc/v0_10')) out.push(normalized.replace('/rpc/v0_10', '/rpc/v0_8'));
+  if (!normalized && isLikelyRpcUrl(normalizeRpcUrl(process.env.RPC_URL_SEPOLIA))) {
+    out.push(normalizeRpcUrl(process.env.RPC_URL_SEPOLIA));
+  }
+  return Array.from(new Set(out.filter((x) => x)));
+};
+const privateVotingAddress = cleanEnv(process.env.NEXT_PUBLIC_PRIVATE_VOTING_ADDRESS);
+const vvCoinAddressFromEnv = cleanEnv(process.env.NEXT_PUBLIC_VV_COIN_ADDRESS);
 const FIELD_MOD = BigInt('3618502788666131106986593281521497120414687020801267626233049500247285301239');
 const ONCHAIN_DAO_SUMMARY = 'On-chain DAO proposal stored in VoteVault.';
 
@@ -68,6 +100,7 @@ const CONNECT_WALLETS: Array<{ name: WalletName; logo: string; desc: string }> =
 ];
 
 const WALLET_SESSION_KEY = 'votevault_wallet_session_v1';
+const LAST_GOOD_RPC_KEY = 'votevault_last_good_rpc_v1';
 
 const DEFAULT_PROPOSALS: Proposal[] = [
   {
@@ -154,16 +187,28 @@ export default function VoteVault() {
   const [isVerifyingWallet, setIsVerifyingWallet] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [walletAccount, setWalletAccount] = useState<InjectedStarknetWallet['account'] | null>(null);
-  const [tokenAddress, setTokenAddress] = useState(vvCoinAddressFromEnv);
+  const [privateVotingContractAddress, setPrivateVotingContractAddress] = useState(
+    isLikelyStarknetAddress(privateVotingAddress) ? privateVotingAddress : '',
+  );
+  const [tokenAddress, setTokenAddress] = useState(
+    isLikelyStarknetAddress(vvCoinAddressFromEnv) ? vvCoinAddressFromEnv : '',
+  );
   const [tokenBalance, setTokenBalance] = useState('0');
   const [isSubmittingTx, setIsSubmittingTx] = useState(false);
   const [adminAuthInput, setAdminAuthInput] = useState('');
-  const provider = useMemo(() => new RpcProvider({ nodeUrl: rpcUrl }), []);
+  const rpcCandidates = useMemo(() => buildRpcCandidates(configuredRpcUrl), []);
+  const [activeRpcUrl, setActiveRpcUrl] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const stored = normalizeRpcUrl(localStorage.getItem(LAST_GOOD_RPC_KEY) || '');
+      if (isLikelyRpcUrl(stored)) return stored;
+    }
+    return rpcCandidates[0] || configuredRpcUrl;
+  });
 
   // --- PROPOSALS DATA STATE ---
-  const [proposals, setProposals] = useState<Proposal[]>(DEFAULT_PROPOSALS);
+  const [proposals, setProposals] = useState<Proposal[]>([]);
 
-  const [selectedProposal, setSelectedProposal] = useState(proposals[0]);
+  const [selectedProposal, setSelectedProposal] = useState(DEFAULT_PROPOSALS[0]);
 
   // --- NEW PROPOSAL FORM STATE ---
   const [formTitle, setFormTitle] = useState('');
@@ -187,7 +232,36 @@ export default function VoteVault() {
     return [];
   };
 
-  const toBigInt = (value: unknown) => BigInt(String(value));
+  const toBigInt = (value: unknown): bigint => {
+    if (typeof value === 'bigint') return value;
+    if (typeof value === 'boolean') return value ? BigInt(1) : BigInt(0);
+    if (typeof value === 'number') return BigInt(value);
+    if (typeof value === 'string') {
+      const trimmed = value.trim();
+      if (trimmed === '' || trimmed === 'undefined' || trimmed === 'null') return BigInt(0);
+      if (trimmed.toLowerCase() === 'true') return BigInt(1);
+      if (trimmed.toLowerCase() === 'false') return BigInt(0);
+      return BigInt(trimmed);
+    }
+    if (value && typeof value === 'object') {
+      const rec = value as Record<string, unknown>;
+      if ('low' in rec && 'high' in rec) {
+        const low = toBigInt(rec.low);
+        const high = toBigInt(rec.high);
+        return (high << BigInt(128)) + low;
+      }
+      if ('value' in rec) return toBigInt(rec.value);
+      if (typeof (value as { toString?: () => string }).toString === 'function') {
+        const asString = (value as { toString: () => string }).toString();
+        if (asString && asString !== '[object Object]') return BigInt(asString);
+      }
+    }
+    return BigInt(0);
+  };
+  const toBool = (value: unknown) => {
+    if (typeof value === 'boolean') return value;
+    return toBigInt(value) !== BigInt(0);
+  };
   const toField = (value: unknown) => {
     const n = toBigInt(value);
     const out = n % FIELD_MOD;
@@ -206,6 +280,48 @@ export default function VoteVault() {
       return null;
     }
   };
+  const getHealthyProvider = async () => {
+    const candidates = [activeRpcUrl, ...rpcCandidates.filter((url) => url !== activeRpcUrl)]
+      .map((url) => normalizeRpcUrl(url))
+      .filter((url, index, arr) => isLikelyRpcUrl(url) && arr.indexOf(url) === index);
+    let lastError: unknown = null;
+    for (const url of candidates) {
+      try {
+        const candidate = new RpcProvider({ nodeUrl: url });
+        await candidate.getChainId();
+        if (url !== activeRpcUrl) setActiveRpcUrl(url);
+        if (typeof window !== 'undefined') localStorage.setItem(LAST_GOOD_RPC_KEY, url);
+        return candidate;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    const walletProviderFallback = walletAccount as unknown as {
+      getChainId?: () => Promise<string>;
+      callContract?: (...args: unknown[]) => Promise<unknown>;
+      waitForTransaction?: (...args: unknown[]) => Promise<unknown>;
+      getClassHashAt?: (...args: unknown[]) => Promise<unknown>;
+    } | null;
+    if (
+      walletProviderFallback &&
+      typeof walletProviderFallback.getChainId === 'function' &&
+      typeof walletProviderFallback.callContract === 'function'
+    ) {
+      return walletProviderFallback as unknown as RpcProvider;
+    }
+    throw lastError || new Error('RPC_UNREACHABLE');
+  };
+  const readWalletChainId = async (wallet: InjectedStarknetWallet): Promise<string> => {
+    try {
+      if (typeof wallet.provider?.getChainId === 'function') {
+        const chain = await wallet.provider.getChainId();
+        return String(chain || '');
+      }
+      return String(wallet.provider?.chainId || '');
+    } catch {
+      return '';
+    }
+  };
 
   const resolveStatus = (deadlineTs: number, isOpen: boolean, forVotes: number, againstVotes: number): ProposalStatus => {
     const now = Math.floor(Date.now() / 1000);
@@ -214,63 +330,245 @@ export default function VoteVault() {
     return forVotes >= againstVotes ? 'Passed' : 'Rejected';
   };
 
+  const resolveAddressFromBook = async (id: string): Promise<string> => {
+    if (typeof window === 'undefined') return '';
+    try {
+      const response = await fetch('/address-book.json', { cache: 'no-store' });
+      if (!response.ok) return '';
+      const entries = (await response.json()) as Array<{ id?: string; address?: string }>;
+      const found = entries.find((entry) => entry.id === id);
+      const normalized = cleanEnv(found?.address || '');
+      return isLikelyStarknetAddress(normalized) ? normalized : '';
+    } catch {
+      return '';
+    }
+  };
+
+  const resolvePrivateVotingAddress = async () => {
+    if (isLikelyStarknetAddress(privateVotingContractAddress)) return privateVotingContractAddress;
+    if (isLikelyStarknetAddress(privateVotingAddress)) {
+      setPrivateVotingContractAddress(privateVotingAddress);
+      return privateVotingAddress;
+    }
+    const fromBook = await resolveAddressFromBook('vv-private-voting');
+    if (fromBook) setPrivateVotingContractAddress(fromBook);
+    return fromBook;
+  };
+
   const resolveTokenAddress = async () => {
-    if (tokenAddress) return tokenAddress;
-    if (!privateVotingAddress) return '';
-    const response = await provider.callContract({
-      contractAddress: privateVotingAddress,
-      entrypoint: 'get_token_address',
-      calldata: [],
-    });
-    const result = toResult(response);
-    const found = result[0] || '';
-    if (found) setTokenAddress(found);
-    return found;
+    if (isLikelyStarknetAddress(tokenAddress)) return tokenAddress;
+    if (isLikelyStarknetAddress(vvCoinAddressFromEnv)) {
+      setTokenAddress(vvCoinAddressFromEnv);
+      return vvCoinAddressFromEnv;
+    }
+    const fromBook = await resolveAddressFromBook('vv-vv-coin');
+    if (fromBook) {
+      setTokenAddress(fromBook);
+      return fromBook;
+    }
+    const votingAddress = await resolvePrivateVotingAddress();
+    if (!votingAddress) return '';
+    try {
+      const rpcProvider = await getHealthyProvider();
+      const response = await rpcProvider.callContract({
+        contractAddress: votingAddress,
+        entrypoint: 'get_token_address',
+        calldata: [],
+      }, 'latest');
+      const result = toResult(response);
+      const found = result[0] || '';
+      if (found) setTokenAddress(found);
+      return found;
+    } catch {
+      return '';
+    }
   };
 
   const waitForTx = async (tx: { transaction_hash?: string; transactionHash?: string }) => {
     const hash = tx.transaction_hash || tx.transactionHash;
     if (!hash) throw new Error('Missing transaction hash from wallet response.');
-    await provider.waitForTransaction(hash);
+    const rpcProvider = await getHealthyProvider();
+    await rpcProvider.waitForTransaction(hash);
     return hash;
   };
 
+  const sanitizeFeltInput = (value: string) => value.trim().replace(/^['"]|['"]$/g, '');
+
+  const isValidFeltInput = (value: string) => /^(0x[a-fA-F0-9]{1,64}|\d+)$/.test(value);
+
+  const getErrorMessage = (error: unknown) => {
+    if (error instanceof Error) return error.message;
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return String(error);
+    }
+  };
+
+  const isRpcConnectivityIssue = (error: unknown) => {
+    const msg = getErrorMessage(error).toLowerCase();
+    return (
+      msg.includes('fetch failed') ||
+      msg.includes('network') ||
+      msg.includes('rpc') ||
+      msg.includes('cors') ||
+      msg.includes('timeout') ||
+      msg.includes('temporarily unavailable')
+    );
+  };
+
+  const isUndeployedAccountError = (error: unknown) => {
+    const msg = getErrorMessage(error).toLowerCase();
+    return (
+      msg.includes('contract not found') ||
+      msg.includes('class hash not found') ||
+      msg.includes('is not deployed') ||
+      msg.includes('no contract')
+    );
+  };
+
+  const isDeserializeParamError = (error: unknown) => {
+    const msg = getErrorMessage(error).toLowerCase();
+    return msg.includes('failed to deserialize param #1') || msg.includes('deserialize param #1');
+  };
+
+  const formatTxError = (error: unknown) => {
+    const raw = getErrorMessage(error);
+    const upper = raw.toUpperCase();
+    if (upper.includes('NOT_ADMIN')) return 'NOT_ADMIN (connected wallet is not admin for this action).';
+    if (upper.includes('INVALID_DEADLINE')) return 'INVALID_DEADLINE (deadline must be in the future).';
+    if (upper.includes('FAILED TO DESERIALIZE PARAM #1')) {
+      return 'Wallet/account call serialization mismatch. Reconnect wallet and retry.';
+    }
+    if (raw.length > 220) return `${raw.slice(0, 220)}...`;
+    return raw;
+  };
+
+  const resolveConnectedWalletAccount = async (): Promise<InjectedStarknetWallet['account'] | null> => {
+    if (walletAccount?.execute) return walletAccount;
+    if (typeof window === 'undefined') return null;
+
+    const browserWallets = window as Window & {
+      starknet?: InjectedStarknetWallet;
+      starknet_braavos?: InjectedStarknetWallet;
+      starknet_argentX?: InjectedStarknetWallet;
+    };
+
+    const preferred =
+      selectedWallet === 'Braavos'
+        ? browserWallets.starknet_braavos
+        : selectedWallet === 'Argent X'
+          ? browserWallets.starknet_argentX
+          : selectedWallet === 'Starknet Wallet'
+            ? browserWallets.starknet
+            : undefined;
+
+    const candidates = [preferred, browserWallets.starknet_braavos, browserWallets.starknet_argentX, browserWallets.starknet]
+      .filter((w, i, arr) => Boolean(w) && arr.findIndex((x) => x === w) === i) as InjectedStarknetWallet[];
+
+    const normalizedCurrent = walletAddress ? normalizeHexFelt(walletAddress) : null;
+
+    for (const candidate of candidates) {
+      if (!candidate?.enable) continue;
+      try {
+        const accounts = await candidate.enable();
+        const candidateAddress = normalizeHexFelt(
+          String(candidate.selectedAddress || candidate.account?.address || accounts?.[0] || ''),
+        );
+        if (!candidate.account?.execute) continue;
+        if (normalizedCurrent && candidateAddress && candidateAddress !== normalizedCurrent) continue;
+        setWalletAccount(candidate.account);
+        if (!walletAddress && candidateAddress) setWalletAddress(candidateAddress);
+        return candidate.account;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  };
+
+  const executeWalletCall = async (
+    contractAddress: string,
+    entrypoint: string,
+    calldata: Array<string | number | bigint>,
+    accountOverride?: InjectedStarknetWallet['account'] | null,
+  ) => {
+    const account = accountOverride || walletAccount;
+    if (!account?.execute) throw new Error('WALLET_NOT_CONNECTED');
+    const normalized = normalizeHexFelt(contractAddress);
+    if (!normalized) throw new Error(`Invalid contract address: ${contractAddress}`);
+
+    const primaryCall = { contractAddress: normalized, entrypoint, calldata };
+    const selectorCall = { to: normalized, selector: hash.getSelectorFromName(entrypoint), calldata };
+
+    try {
+      return await account.execute(primaryCall);
+    } catch (error1) {
+      if (!isDeserializeParamError(error1)) throw error1;
+      try {
+        return await account.execute([primaryCall]);
+      } catch (error2) {
+        if (!isDeserializeParamError(error2)) throw error2;
+        try {
+          return await account.execute(selectorCall);
+        } catch (error3) {
+          if (!isDeserializeParamError(error3)) throw error3;
+          return await account.execute([selectorCall]);
+        }
+      }
+    }
+  };
+
   const refreshTokenBalance = async (addressToCheck?: string) => {
-    const accountToCheck = addressToCheck || walletAddress;
-    if (!accountToCheck) return;
-    const coinAddress = await resolveTokenAddress();
-    if (!coinAddress) return;
-    const response = await provider.callContract({
-      contractAddress: coinAddress,
-      entrypoint: 'balance_of',
-      calldata: CallData.compile({ account: accountToCheck }),
-    });
-    const result = toResult(response);
-    setTokenBalance((toBigInt(result[0] || 0)).toString());
+    try {
+      const accountToCheck = addressToCheck || walletAddress;
+      if (!accountToCheck) return;
+      const coinAddress = await resolveTokenAddress();
+      if (!coinAddress) return;
+      const rpcProvider = await getHealthyProvider();
+      const response = await rpcProvider.callContract({
+        contractAddress: coinAddress,
+        entrypoint: 'balance_of',
+        calldata: CallData.compile({ account: accountToCheck }),
+      }, 'latest');
+      const result = toResult(response);
+      setTokenBalance((toBigInt(result[0] || 0)).toString());
+    } catch (error) {
+      console.warn('Unable to refresh token balance:', error);
+    }
   };
 
   const loadOnchainProposals = async (addressToCheck?: string) => {
-    if (!privateVotingAddress) return;
+    const votingAddress = await resolvePrivateVotingAddress();
+    if (!votingAddress) {
+      setProposals([]);
+      return;
+    }
     try {
-      const countResponse = await provider.callContract({
-        contractAddress: privateVotingAddress,
+      const rpcProvider = await getHealthyProvider();
+      const countResponse = await rpcProvider.callContract({
+        contractAddress: votingAddress,
         entrypoint: 'get_proposal_count',
         calldata: [],
-      });
+      }, 'latest');
       const count = Number(toBigInt(toResult(countResponse)[0] || 0));
-      if (count === 0) return;
+      if (count === 0) {
+        setProposals([]);
+        if (view === 'proposal-detail') setView('dashboard');
+        return;
+      }
 
       const onchain: Proposal[] = [];
       for (let i = 0; i < count; i += 1) {
-        const proposalResponse = await provider.callContract({
-          contractAddress: privateVotingAddress,
+        const proposalResponse = await rpcProvider.callContract({
+          contractAddress: votingAddress,
           entrypoint: 'get_proposal',
           calldata: CallData.compile({ proposal_id: i }),
-        });
+        }, 'latest');
         const proposalResult = toResult(proposalResponse);
         const titleFelt = proposalResult[0] || '0x0';
         const deadlineTs = Number(toBigInt(proposalResult[1] || 0));
-        const isOpen = toBigInt(proposalResult[2] || 0) === BigInt(1);
+        const isOpen = toBool(proposalResult[2]);
         const forVotes = Number(toBigInt(proposalResult[3] || 0));
         const againstVotes = Number(toBigInt(proposalResult[4] || 0));
 
@@ -305,6 +603,55 @@ export default function VoteVault() {
       if (selectedFromFresh) setSelectedProposal(selectedFromFresh);
     } catch (error) {
       console.error('Failed to load on-chain proposals:', error);
+      try {
+        const fallbackRpc = normalizeRpcUrl(activeRpcUrl || rpcCandidates[0] || configuredRpcUrl);
+        const params = new URLSearchParams({ contractAddress: votingAddress });
+        if (isLikelyRpcUrl(fallbackRpc)) params.set('rpcUrl', fallbackRpc);
+        const response = await fetch(`/api/proposals?${params.toString()}`, {
+          cache: 'no-store',
+        });
+        if (response.ok) {
+          const payload = (await response.json()) as {
+            proposals?: Array<{
+              id: number;
+              contractId: number;
+              title: string;
+              deadlineTs: number;
+              isOpen: boolean;
+              forVotes: number;
+              againstVotes: number;
+            }>;
+          };
+          const fallback = (payload.proposals || []).map((item) => {
+            const totalVotes = item.forVotes + item.againstVotes;
+            return {
+              id: item.id,
+              contractId: item.contractId,
+              title: item.title,
+              summary: ONCHAIN_DAO_SUMMARY,
+              motivation: 'Token-weighted governance where voting power is based on VV Coin balance.',
+              deadline: item.deadlineTs > 0 ? new Date(item.deadlineTs * 1000).toISOString().slice(0, 10) : 'N/A',
+              status: resolveStatus(item.deadlineTs, item.isOpen, item.forVotes, item.againstVotes),
+              forVotes: item.forVotes,
+              againstVotes: item.againstVotes,
+              voters: totalVotes,
+              hasVoted: false,
+              tag: 'DAO',
+              quorum: totalVotes > 0 ? Math.min(100, Math.round((totalVotes / 1000) * 100)) : 0,
+            } as Proposal;
+          });
+          const sorted = [...fallback].sort((a, b) => b.id - a.id);
+          setProposals(sorted);
+          const selectedFromFresh = sorted.find((p) => p.id === selectedProposal.id) || sorted[0];
+          if (selectedFromFresh) setSelectedProposal(selectedFromFresh);
+          if (sorted.length > 0) return;
+        }
+      } catch (apiError) {
+        console.error('Fallback /api/proposals failed:', apiError);
+      }
+      // Never fall back to mock placeholders in dashboard when chain sync fails.
+      setProposals([]);
+      if (view === 'proposal-detail') setView('dashboard');
     }
   };
 
@@ -354,6 +701,25 @@ export default function VoteVault() {
     setView('landing');
   };
 
+  useEffect(() => {
+    let cancelled = false;
+    const hydrateConfig = async () => {
+      if (!isLikelyStarknetAddress(privateVotingContractAddress)) {
+        const fromBook = await resolveAddressFromBook('vv-private-voting');
+        if (!cancelled && fromBook) setPrivateVotingContractAddress(fromBook);
+      }
+      if (!isLikelyStarknetAddress(tokenAddress)) {
+        const fromBook = await resolveAddressFromBook('vv-vv-coin');
+        if (!cancelled && fromBook) setTokenAddress(fromBook);
+      }
+    };
+    hydrateConfig();
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // --- ACTIONS ---
   const handleConnect = async () => {
     if (!selectedWallet) return alert("Please select a Starknet wallet.");
@@ -367,12 +733,13 @@ export default function VoteVault() {
         starknet_braavos?: InjectedStarknetWallet;
         starknet_argentX?: InjectedStarknetWallet;
       };
-      const injectedWallet =
+      const preferredWallet =
         walletType === 'Braavos'
           ? browserWallets.starknet_braavos
           : walletType === 'Argent X'
             ? browserWallets.starknet_argentX
             : browserWallets.starknet;
+      const injectedWallet = preferredWallet || browserWallets.starknet;
 
       if (!injectedWallet?.enable) {
         alert('Selected wallet extension was not detected in this browser.');
@@ -385,20 +752,22 @@ export default function VoteVault() {
       ).toLowerCase();
       const inputCanonical = normalizedInput ? normalizeHexFelt(normalizedInput) : null;
       const selectedCanonical = selectedAddressRaw ? normalizeHexFelt(selectedAddressRaw) : null;
-      const resolvedAddress = inputCanonical || selectedCanonical;
+      const resolvedAddress = selectedCanonical || inputCanonical;
       if (!resolvedAddress) {
         return alert("Please enter a valid wallet address starting with 0x, or unlock the selected wallet extension.");
       }
       if (inputCanonical && selectedCanonical && selectedCanonical !== inputCanonical) {
-        alert('The entered wallet address does not match the selected wallet extension account.');
-        return;
+        console.warn('Manual address differs from selected extension account. Using extension account address.');
       }
 
-      const walletChainId =
-        (typeof injectedWallet.provider?.getChainId === 'function'
-          ? await injectedWallet.provider.getChainId().catch(() => undefined)
-          : injectedWallet.provider?.chainId) || '';
-      const rpcChainId = await provider.getChainId().catch(() => '');
+      const walletChainId = await readWalletChainId(injectedWallet);
+      let rpcProvider: RpcProvider | null = null;
+      try {
+        rpcProvider = await getHealthyProvider();
+      } catch (rpcError) {
+        console.warn('RPC provider unavailable during connect, continuing with wallet provider.', rpcError);
+      }
+      const rpcChainId = rpcProvider ? await rpcProvider.getChainId().catch(() => '') : '';
       if (walletChainId && rpcChainId && walletChainId !== rpcChainId) {
         alert(`Network mismatch. Wallet is on ${walletChainId}, app RPC is ${rpcChainId}. Switch wallet network and retry.`);
         return;
@@ -406,12 +775,23 @@ export default function VoteVault() {
 
       // Optional deployed-account verification via RPC.
       // If this RPC check is unavailable but wallet is injected correctly, allow connection.
-      try {
-        await provider.getClassHashAt(resolvedAddress);
-      } catch {
-        if (!selectedCanonical || selectedCanonical !== resolvedAddress) {
-          alert('Wallet address is not an existing deployed Starknet wallet on this network.');
-          return;
+      if (rpcProvider) {
+        try {
+          await rpcProvider.getClassHashAt(resolvedAddress, 'latest');
+        } catch (deployCheckError) {
+          if (isUndeployedAccountError(deployCheckError)) {
+            alert('Wallet address is not an existing deployed Starknet wallet on this network.');
+            return;
+          }
+          if (!selectedCanonical) {
+            if (isRpcConnectivityIssue(deployCheckError)) {
+              alert('Wallet deployment check failed due to RPC/network issue. Reconnect wallet and retry.');
+            } else {
+              alert('Unable to verify wallet deployment from RPC. Ensure wallet is unlocked on Starknet Sepolia and retry.');
+            }
+            return;
+          }
+          console.warn('Skipping deployment verification due transient RPC issue:', deployCheckError);
         }
       }
 
@@ -426,10 +806,17 @@ export default function VoteVault() {
       setShowWalletModal(false);
       setView('dashboard');
       persistWalletSession(walletType, resolvedAddress);
-      await loadOnchainProposals(resolvedAddress);
-      await refreshTokenBalance(resolvedAddress);
-    } catch {
-      alert('Wallet connection failed. Ensure extension is unlocked and set to Starknet Sepolia.');
+      void loadOnchainProposals(resolvedAddress);
+      void refreshTokenBalance(resolvedAddress);
+    } catch (error) {
+      const message = getErrorMessage(error).toLowerCase();
+      if (message.includes('user rejected') || message.includes('rejected')) {
+        alert('Wallet connection was rejected in the wallet extension.');
+      } else if (message.includes('fetch failed') || message.includes('network') || message.includes('rpc')) {
+        alert('Wallet connection failed due to RPC/network issue. Recheck wallet network and retry.');
+      } else {
+        alert('Wallet connection failed. Ensure extension is unlocked and set to Starknet Sepolia.');
+      }
       return;
     } finally {
       setIsVerifyingWallet(false);
@@ -448,8 +835,10 @@ export default function VoteVault() {
   const handlePublishProposal = async (e: React.FormEvent) => {
     e.preventDefault();
     if(!formTitle || !formSummary || !formDeadline) return alert("Please fill in all required fields.");
-    if (!walletAccount?.execute) return alert("Connect a Starknet wallet first.");
-    if (!privateVotingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
+    const connectedAccount = await resolveConnectedWalletAccount();
+    if (!connectedAccount?.execute) return alert("Connect Starknet wallet first.");
+    const votingAddress = await resolvePrivateVotingAddress();
+    if (!votingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
     if (formTitle.length > 31) return alert("Proposal title must be 31 characters or fewer (felt252 short string).");
 
     const selectedDate = new Date(formDeadline);
@@ -463,14 +852,15 @@ export default function VoteVault() {
     const deadlineTs = Math.floor(new Date(`${formDeadline}T23:59:59Z`).getTime() / 1000);
     setIsSubmittingTx(true);
     try {
-      const tx = await walletAccount.execute({
-        contractAddress: privateVotingAddress,
-        entrypoint: 'create_proposal',
-        calldata: CallData.compile({
+      const tx = await executeWalletCall(
+        votingAddress,
+        'create_proposal',
+        CallData.compile({
           title: shortString.encodeShortString(formTitle),
           deadline: deadlineTs,
         }),
-      });
+        connectedAccount,
+      );
       await waitForTx(tx);
       await loadOnchainProposals(walletAddress);
       setView('dashboard');
@@ -481,7 +871,7 @@ export default function VoteVault() {
       alert('Proposal created on-chain.');
     } catch (error) {
       console.error(error);
-      alert('Proposal creation failed. Ensure connected wallet is the contract admin and has gas.');
+      alert(`Proposal creation failed: ${formatTxError(error)}`);
     } finally {
       setIsSubmittingTx(false);
     }
@@ -490,18 +880,23 @@ export default function VoteVault() {
   const handleVote = async (type: 'for' | 'against') => {
     if (selectedProposal.hasVoted || selectedProposal.status !== 'Live') return;
     if (!isConnected) return alert("Connect wallet to vote.");
-    if (!walletAccount?.execute) return alert("Connect a Starknet wallet first.");
-    if (!privateVotingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
-    const resolveProposalContractId = async (): Promise<number | null> => {
-      if (typeof selectedProposal.contractId === 'number') return selectedProposal.contractId;
+    const connectedAccount = await resolveConnectedWalletAccount();
+    if (!connectedAccount?.execute) return alert("Connect Starknet wallet first.");
+    const votingAddress = await resolvePrivateVotingAddress();
+    if (!votingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
+    const resolveProposalContractId = async (): Promise<{ id: number | null; noOnchain: boolean }> => {
+      if (typeof selectedProposal.contractId === 'number') {
+        return { id: selectedProposal.contractId, noOnchain: false };
+      }
       try {
-        const countResponse = await provider.callContract({
-          contractAddress: privateVotingAddress,
+        const rpcProvider = await getHealthyProvider();
+        const countResponse = await rpcProvider.callContract({
+          contractAddress: votingAddress,
           entrypoint: 'get_proposal_count',
           calldata: [],
-        });
+        }, 'latest');
         const count = Number(toBigInt(toResult(countResponse)[0] || 0));
-        if (count === 0) return null;
+        if (count === 0) return { id: null, noOnchain: true };
 
         // If this card came from on-chain list, infer deterministic id mapping (id = contractId + 1).
         if (selectedProposal.summary === ONCHAIN_DAO_SUMMARY) {
@@ -513,45 +908,54 @@ export default function VoteVault() {
                 proposal.id === selectedProposal.id ? { ...proposal, contractId: inferred } : proposal,
               ),
             );
-            return inferred;
+            return { id: inferred, noOnchain: false };
           }
         }
       } catch (error) {
         console.error('Failed to resolve proposal contract id:', error);
       }
-      return null;
+      return { id: null, noOnchain: false };
     };
-    const proposalContractId = await resolveProposalContractId();
+    const resolvedProposal = await resolveProposalContractId();
+    const proposalContractId = resolvedProposal.id;
+    if (resolvedProposal.noOnchain) {
+      return alert('No on-chain DAO proposals exist yet. Admin must create one first.');
+    }
     if (proposalContractId === null) {
       return alert('This proposal is not synced from on-chain yet. Go back to Dashboard and pick an on-chain DAO proposal.');
     }
     if (!/^\d+$/.test(daoVoteWeight) || daoVoteWeight === '0') {
       return alert('Enter a valid positive vote weight.');
     }
-    if (!/^(0x[a-fA-F0-9]{1,64}|\d+)$/.test(daoVoteNullifier.trim())) {
+    const normalizedNullifier = sanitizeFeltInput(daoVoteNullifier);
+    if (!isValidFeltInput(normalizedNullifier)) {
       return alert('Enter a valid nullifier (decimal or 0x felt).');
     }
     const proofFelts = daoVoteProof
       .split(',')
-      .map((item) => item.trim())
+      .map((item) => sanitizeFeltInput(item))
       .filter((item) => item.length > 0);
     if (proofFelts.length === 0) {
       return alert('Enter at least one proof felt.');
     }
+    if (proofFelts.some((item) => !isValidFeltInput(item))) {
+      return alert('Proof felts must be decimal or 0x felt values (without quotes).');
+    }
 
     setIsSubmittingTx(true);
     try {
-      const tx = await walletAccount.execute({
-        contractAddress: privateVotingAddress,
-        entrypoint: 'vote_on_proposal',
-        calldata: CallData.compile({
+      const tx = await executeWalletCall(
+        votingAddress,
+        'vote_on_proposal',
+        CallData.compile({
           proposal_id: proposalContractId,
           support: type === 'for',
           weight: daoVoteWeight,
-          nullifier_hash: daoVoteNullifier.trim(),
+          nullifier_hash: normalizedNullifier,
           proof: proofFelts,
         }),
-      });
+        connectedAccount,
+      );
       await waitForTx(tx);
       await loadOnchainProposals(walletAddress);
       await refreshTokenBalance(walletAddress);
@@ -565,7 +969,7 @@ export default function VoteVault() {
       alert('Vote submitted on-chain.');
     } catch (error) {
       console.error(error);
-      alert('Vote failed. Check proof validity, nullifier uniqueness, and proposal deadline.');
+      alert(`Vote failed: ${formatTxError(error)}`);
     } finally {
       setIsSubmittingTx(false);
     }
@@ -573,7 +977,8 @@ export default function VoteVault() {
 
   const handleMintTokens = async () => {
     if (!isAdminAuthenticated) return alert('Admin auth required.');
-    if (!walletAccount?.execute) return alert('Connect a Starknet wallet first.');
+    const connectedAccount = await resolveConnectedWalletAccount();
+    if (!connectedAccount?.execute) return alert('Connect Starknet wallet first.');
     if (!/^0x[a-fA-F0-9]{1,64}$/.test(mintRecipient.trim())) return alert('Enter a valid recipient wallet address.');
     if (!/^\d+$/.test(mintAmount) || mintAmount === '0') return alert('Enter a valid positive token amount.');
 
@@ -582,14 +987,15 @@ export default function VoteVault() {
 
     setIsSubmittingTx(true);
     try {
-      const tx = await walletAccount.execute({
-        contractAddress: coinAddress,
-        entrypoint: 'mint',
-        calldata: CallData.compile({
+      const tx = await executeWalletCall(
+        coinAddress,
+        'mint',
+        CallData.compile({
           to: mintRecipient.trim(),
           amount: mintAmount,
         }),
-      });
+        connectedAccount,
+      );
       await waitForTx(tx);
       await refreshTokenBalance(walletAddress);
       setMintRecipient('');
@@ -597,7 +1003,7 @@ export default function VoteVault() {
       alert('VV Coin minted successfully.');
     } catch (error) {
       console.error(error);
-      alert('Mint failed. Ensure connected wallet is VV Coin admin.');
+      alert(`Mint failed: ${formatTxError(error)}`);
     } finally {
       setIsSubmittingTx(false);
     }
@@ -605,17 +1011,21 @@ export default function VoteVault() {
 
   const generateDaoVoteProof = async (support: 'for' | 'against') => {
     if (!isConnected || !walletAddress) return alert('Connect wallet before generating proof.');
-    if (!privateVotingAddress) return alert('PrivateVoting contract address is missing in frontend env.');
-    const resolveProposalContractId = async (): Promise<number | null> => {
-      if (typeof selectedProposal.contractId === 'number') return selectedProposal.contractId;
+    const votingAddress = await resolvePrivateVotingAddress();
+    if (!votingAddress) return alert('PrivateVoting contract address is missing in frontend env.');
+    const resolveProposalContractId = async (): Promise<{ id: number | null; noOnchain: boolean }> => {
+      if (typeof selectedProposal.contractId === 'number') {
+        return { id: selectedProposal.contractId, noOnchain: false };
+      }
       try {
-        const countResponse = await provider.callContract({
-          contractAddress: privateVotingAddress,
+        const rpcProvider = await getHealthyProvider();
+        const countResponse = await rpcProvider.callContract({
+          contractAddress: votingAddress,
           entrypoint: 'get_proposal_count',
           calldata: [],
-        });
+        }, 'latest');
         const count = Number(toBigInt(toResult(countResponse)[0] || 0));
-        if (count === 0) return null;
+        if (count === 0) return { id: null, noOnchain: true };
 
         if (selectedProposal.summary === ONCHAIN_DAO_SUMMARY) {
           const inferred = selectedProposal.id - 1;
@@ -626,26 +1036,31 @@ export default function VoteVault() {
                 proposal.id === selectedProposal.id ? { ...proposal, contractId: inferred } : proposal,
               ),
             );
-            return inferred;
+            return { id: inferred, noOnchain: false };
           }
         }
       } catch (error) {
         console.error('Failed to resolve proposal contract id:', error);
       }
-      return null;
+      return { id: null, noOnchain: false };
     };
-    const proposalContractId = await resolveProposalContractId();
+    const resolvedProposal = await resolveProposalContractId();
+    const proposalContractId = resolvedProposal.id;
+    if (resolvedProposal.noOnchain) {
+      return alert('No on-chain DAO proposals exist yet. Admin must create one first.');
+    }
     if (proposalContractId === null) {
       return alert('This proposal is not synced from on-chain yet. Go back to Dashboard and pick an on-chain DAO proposal.');
     }
 
     setIsGeneratingDaoProof(true);
     try {
-      const configResponse = await provider.callContract({
-        contractAddress: privateVotingAddress,
+      const rpcProvider = await getHealthyProvider();
+      const configResponse = await rpcProvider.callContract({
+        contractAddress: votingAddress,
         entrypoint: 'get_election_config',
         calldata: [],
-      });
+      }, 'latest');
       const [electionIdRaw] = toResult(configResponse);
       const electionId = toField(electionIdRaw || 0);
       const weight = toField(tokenBalance || 0);
@@ -676,10 +1091,9 @@ export default function VoteVault() {
   };
 
   useEffect(() => {
-    if (!privateVotingAddress) return;
     loadOnchainProposals();
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [privateVotingAddress]);
+  }, [privateVotingContractAddress]);
 
   useEffect(() => {
     let cancelled = false;
@@ -980,33 +1394,45 @@ export default function VoteVault() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10">
-              {filteredProposals.map(p => {
-                const { forP } = getPercentages(p.forVotes, p.againstVotes);
-                return (
-                  <div key={p.id} onClick={() => { setSelectedProposal(p); setView('proposal-detail'); }} className="bg-[#0d1117] p-8 md:p-10 rounded-[2rem] md:rounded-[3.5rem] border border-white/5 hover:border-[#86e8f8]/30 cursor-pointer flex flex-col h-full">
-                    <div className="flex justify-between items-center mb-8">
-                      <span className={`px-3 py-1 border rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest ${getTagStyle(p.status)}`}>{p.status}</span>
-                      <span className="text-[8px] md:text-[9px] font-black uppercase text-slate-600 tracking-widest">{p.tag}</span>
-                    </div>
-                    <h3 className="text-xl md:text-2xl font-black text-white mb-6 uppercase leading-tight line-clamp-2">{p.title}</h3>
-                    
-                    <div className="space-y-3 mb-8">
-                      <div className="flex justify-between text-[8px] md:text-[10px] font-black uppercase text-slate-500">
-                        <span className="text-green-500">For: {Math.round(forP)}%</span>
-                        <span className="text-red-500">Against: {Math.round(100 - forP)}%</span>
+            {filteredProposals.length === 0 ? (
+              <div className="bg-[#0d1117] border border-white/10 rounded-[2rem] md:rounded-[3.5rem] p-8 md:p-12 text-center space-y-4">
+                <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-slate-400">No On-Chain Proposals Yet</p>
+                <p className="text-xs md:text-sm text-slate-500 max-w-xl mx-auto">Admin must publish at least one proposal on-chain before users can generate proof and vote.</p>
+                {isAdminAuthenticated && (
+                  <button onClick={() => setView('admin-create')} className="bg-amber-500 text-black px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.2em]">
+                    Create Proposal
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 md:gap-10">
+                {filteredProposals.map(p => {
+                  const { forP } = getPercentages(p.forVotes, p.againstVotes);
+                  return (
+                    <div key={p.id} onClick={() => { setSelectedProposal(p); setView('proposal-detail'); }} className="bg-[#0d1117] p-8 md:p-10 rounded-[2rem] md:rounded-[3.5rem] border border-white/5 hover:border-[#86e8f8]/30 cursor-pointer flex flex-col h-full">
+                      <div className="flex justify-between items-center mb-8">
+                        <span className={`px-3 py-1 border rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest ${getTagStyle(p.status)}`}>{p.status}</span>
+                        <span className="text-[8px] md:text-[9px] font-black uppercase text-slate-600 tracking-widest">{p.tag}</span>
                       </div>
-                      <div className="h-1.5 md:h-2 w-full bg-red-500/20 rounded-full overflow-hidden flex">
-                        <div style={{ width: `${forP}%` }} className="h-full bg-green-500" />
+                      <h3 className="text-xl md:text-2xl font-black text-white mb-6 uppercase leading-tight line-clamp-2">{p.title}</h3>
+                      
+                      <div className="space-y-3 mb-8">
+                        <div className="flex justify-between text-[8px] md:text-[10px] font-black uppercase text-slate-500">
+                          <span className="text-green-500">For: {Math.round(forP)}%</span>
+                          <span className="text-red-500">Against: {Math.round(100 - forP)}%</span>
+                        </div>
+                        <div className="h-1.5 md:h-2 w-full bg-red-500/20 rounded-full overflow-hidden flex">
+                          <div style={{ width: `${forP}%` }} className="h-full bg-green-500" />
+                        </div>
+                      </div>
+                      <div className="mt-auto pt-6 border-t border-white/5 text-[9px] md:text-[10px] font-black uppercase text-slate-500 flex justify-between items-center">
+                        View Details <ChevronRight size={16}/>
                       </div>
                     </div>
-                    <div className="mt-auto pt-6 border-t border-white/5 text-[9px] md:text-[10px] font-black uppercase text-slate-500 flex justify-between items-center">
-                      View Details <ChevronRight size={16}/>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -1378,8 +1804,12 @@ export default function VoteVault() {
                       <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Enter wallet address to connect</p>
                       <button
                         onClick={handleConnect}
-                        disabled={isVerifyingWallet || !/^0x[a-fA-F0-9]{1,64}$/.test(walletAddress.trim())}
-                        className={`w-full py-6 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${!isVerifyingWallet && /^0x[a-fA-F0-9]{1,64}$/.test(walletAddress.trim()) ? 'bg-[#86e8f8] text-black scale-105 shadow-lg shadow-[#86e8f8]/20' : 'bg-white/5 text-slate-600 cursor-not-allowed'}`}
+                        disabled={isVerifyingWallet || (walletAddress.trim() !== '' && !/^0x[a-fA-F0-9]{1,64}$/.test(walletAddress.trim()))}
+                        className={`w-full py-6 rounded-2xl font-black uppercase text-xs tracking-widest transition-all ${
+                          !isVerifyingWallet && (walletAddress.trim() === '' || /^0x[a-fA-F0-9]{1,64}$/.test(walletAddress.trim()))
+                            ? 'bg-[#86e8f8] text-black scale-105 shadow-lg shadow-[#86e8f8]/20'
+                            : 'bg-white/5 text-slate-600 cursor-not-allowed'
+                        }`}
                       >
                         {isVerifyingWallet ? 'Verifying Wallet...' : 'Confirm Access'}
                       </button>

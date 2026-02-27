@@ -3,19 +3,19 @@
     "id": "vv-vv-coin",
     "name": "VV Coin",
     "description": "VoteVault governance token",
-    "address": "0x46688b03b6156f60d37a385c579a866e3eabd385637990fd44b932d9ac34201"
+    "address": "0x2657cb09c9094a2dd1a65369e441bf940d22b951f5cdc19197d90af42abdc4e"
   },
   {
     "id": "vv-mock-verifier",
     "name": "MockVerifier",
     "description": "VoteVault proof verifier contract",
-    "address": "0x12d9502ff7ad663bba0f03ba1b15535d03ff4fe0bbe403d539a9f7b9f394e64"
+    "address": "0x304e849935c7f3dec2b7e343336e853bae9252a3fac7a3d316c8d662b6222f3"
   },
   {
     "id": "vv-private-voting",
     "name": "PrivateVoting",
     "description": "VoteVault private voting + DAO governance contract",
-    "address": "0x3f6df3650fac2e197df9efa4e64e296de0819d2e00067c14620133e92a1fd2b"
+    "address": "0x7aca8369070c5ec5c915e315e442709e1d585e82a83f0cbcf40e578d42f10d"
   },
   {
     "id": "pv-mock-verifier",
