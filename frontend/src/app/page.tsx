@@ -1,6 +1,7 @@
 "use client";
 import React, { useEffect, useMemo, useState } from 'react';
 import { CallData, RpcProvider, hash, shortString } from 'starknet';
+import { connect as starknetkitConnect } from 'starknetkit';
 import { 
   Lock, LayoutDashboard, Menu, X as CloseIcon,
   MessageSquare, 
@@ -50,6 +51,7 @@ const FIELD_MOD = BigInt('361850278866613110698659328152149712041468702080126762
 const ONCHAIN_DAO_SUMMARY = 'On-chain DAO proposal stored in VoteVault.';
 
 type WalletName = 'Braavos' | 'Argent X' | 'Starknet Wallet';
+type ConnectionMode = 'injected' | 'mobile';
 type ProposalStatus = 'Live' | 'Passed' | 'Pending' | 'Rejected';
 
 type Proposal = {
@@ -101,6 +103,9 @@ const CONNECT_WALLETS: Array<{ name: WalletName; logo: string; desc: string }> =
 
 const WALLET_SESSION_KEY = 'votevault_wallet_session_v1';
 const LAST_GOOD_RPC_KEY = 'votevault_last_good_rpc_v1';
+const MOBILE_HANDOFF_KEY = 'votevault_mobile_handoff_v1';
+const MOBILE_RETURN_PARAM = 'vv_mobile_return';
+const MOBILE_WALLET_PARAM = 'vv_wallet';
 
 const DEFAULT_PROPOSALS: Proposal[] = [
   {
@@ -187,6 +192,7 @@ export default function VoteVault() {
   const [isVerifyingWallet, setIsVerifyingWallet] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
   const [walletAccount, setWalletAccount] = useState<InjectedStarknetWallet['account'] | null>(null);
+  const [connectionMode, setConnectionMode] = useState<ConnectionMode>('injected');
   const [privateVotingContractAddress, setPrivateVotingContractAddress] = useState(
     isLikelyStarknetAddress(privateVotingAddress) ? privateVotingAddress : '',
   );
@@ -222,6 +228,7 @@ export default function VoteVault() {
   const [daoVoteNullifier, setDaoVoteNullifier] = useState('');
   const [daoVoteProof, setDaoVoteProof] = useState('');
   const [isGeneratingDaoProof, setIsGeneratingDaoProof] = useState(false);
+  const canSignTransactions = Boolean(walletAccount?.execute);
 
   // --- LOGIC & HELPERS ---
   const toResult = (response: unknown): string[] => {
@@ -311,6 +318,37 @@ export default function VoteVault() {
     }
     throw lastError || new Error('RPC_UNREACHABLE');
   };
+  const verifyWalletDeployment = async (address: string): Promise<'deployed' | 'undeployed' | 'unknown'> => {
+    const urls = [activeRpcUrl, ...rpcCandidates.filter((url) => url !== activeRpcUrl)]
+      .map((url) => normalizeRpcUrl(url))
+      .filter((url, index, arr) => isLikelyRpcUrl(url) && arr.indexOf(url) === index);
+
+    let reachableProviders = 0;
+    let undeployedSignals = 0;
+
+    for (const url of urls) {
+      try {
+        const provider = new RpcProvider({ nodeUrl: url });
+        await provider.getChainId();
+        reachableProviders += 1;
+        try {
+          await provider.getClassHashAt(address, 'latest');
+          return 'deployed';
+        } catch (error) {
+          if (isUndeployedAccountError(error)) {
+            undeployedSignals += 1;
+          }
+        }
+      } catch {
+        // Try next provider candidate.
+      }
+    }
+
+    if (reachableProviders > 0 && undeployedSignals === reachableProviders) {
+      return 'undeployed';
+    }
+    return 'unknown';
+  };
   const readWalletChainId = async (wallet: InjectedStarknetWallet): Promise<string> => {
     try {
       if (typeof wallet.provider?.getChainId === 'function') {
@@ -322,6 +360,132 @@ export default function VoteVault() {
       return '';
     }
   };
+  const connectWithMobileWallet = async (
+    walletType: WalletName,
+    modalMode: 'alwaysAsk' | 'canAsk' | 'neverAsk' = 'alwaysAsk',
+  ): Promise<InjectedStarknetWallet | null> => {
+    if (typeof window === 'undefined') return null;
+
+    const toInjectedWallet = async (wallet: {
+      enable?: (options?: unknown) => Promise<string[]>;
+      selectedAddress?: string;
+      provider?: InjectedStarknetWallet['provider'];
+      account?: InjectedStarknetWallet['account'];
+    } | null | undefined): Promise<InjectedStarknetWallet | null> => {
+      if (!wallet) return null;
+      const accounts = wallet.enable ? await wallet.enable() : [];
+      return {
+        enable: wallet.enable || (async () => accounts),
+        selectedAddress: wallet.selectedAddress || wallet.account?.address || accounts?.[0] || '',
+        provider: wallet.provider,
+        account: wallet.account,
+      };
+    };
+
+    if (walletType === 'Braavos' && modalMode === 'alwaysAsk') {
+      // Braavos mobile should be opened directly to avoid install prompts from connector discovery.
+      handoffToMobileWalletApp('Braavos');
+      return null;
+    }
+
+    const walletInclude: Record<WalletName, string[] | undefined> = {
+      Braavos: ['braavos'],
+      'Argent X': ['argentX', 'argentWebWallet'],
+      'Starknet Wallet': undefined,
+    };
+
+    const attempts: Array<{ include?: string[] }> = [{ include: walletInclude[walletType] }];
+
+    for (const attempt of attempts) {
+      try {
+        const response = await starknetkitConnect({
+          modalMode,
+          resultType: 'wallet',
+          dappName: 'VoteVault',
+          webWalletUrl: 'https://web.argent.xyz',
+          argentMobileOptions: {
+            dappName: 'VoteVault',
+            url: window.location.origin,
+          },
+          include: attempt.include,
+        });
+        const wallet = response.wallet as {
+          enable?: (options?: unknown) => Promise<string[]>;
+          selectedAddress?: string;
+          provider?: InjectedStarknetWallet['provider'];
+          account?: InjectedStarknetWallet['account'];
+        } | null | undefined;
+        const normalized = await toInjectedWallet(wallet);
+        if (normalized) return normalized;
+      } catch (error) {
+        console.warn('Mobile wallet connection attempt failed:', error);
+      }
+    }
+
+    return null;
+  };
+  const getWalletAppDeepLinks = (walletType: WalletName, dappUrl: string) => {
+    const encoded = encodeURIComponent(dappUrl);
+    if (walletType === 'Braavos') {
+      let host = '';
+      try {
+        host = new URL(dappUrl).host;
+      } catch {
+        host = typeof window !== 'undefined' ? window.location.host : '';
+      }
+      return {
+        // Match get-starknet-core official mobile URL shape to avoid Braavos "Unsupported link".
+        primary: `https://link.braavos.app/dapp/${host}`,
+        fallback: undefined,
+      };
+    }
+    return {
+      primary: `https://argent.link/dapp?url=${encoded}`,
+      fallback: undefined,
+    };
+  };
+  const handoffToMobileWalletApp = (walletType: WalletName, addressHint?: string) => {
+    if (typeof window === 'undefined') return false;
+    const returnUrl = new URL(window.location.href);
+    returnUrl.searchParams.set(MOBILE_RETURN_PARAM, '1');
+    returnUrl.searchParams.set(MOBILE_WALLET_PARAM, walletType);
+    if (addressHint) returnUrl.searchParams.set('vv_addr', addressHint);
+    localStorage.setItem(
+      MOBILE_HANDOFF_KEY,
+      JSON.stringify({
+        walletType,
+        addressHint: addressHint || '',
+        ts: Date.now(),
+      }),
+    );
+    const deeplink = getWalletAppDeepLinks(walletType, returnUrl.toString());
+    if (deeplink.fallback) {
+      const fallbackTimeout = window.setTimeout(() => {
+        if (document.visibilityState === 'visible') {
+          window.location.href = deeplink.fallback!;
+        }
+      }, 1200);
+      const cancelFallback = () => window.clearTimeout(fallbackTimeout);
+      window.addEventListener('visibilitychange', cancelFallback, { once: true });
+      window.addEventListener('pagehide', cancelFallback, { once: true });
+    }
+    window.location.href = deeplink.primary;
+    return true;
+  };
+  const clearMobileReturnParams = () => {
+    if (typeof window === 'undefined') return;
+    const url = new URL(window.location.href);
+    url.searchParams.delete(MOBILE_RETURN_PARAM);
+    url.searchParams.delete(MOBILE_WALLET_PARAM);
+    url.searchParams.delete('vv_addr');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  };
+  const clearMobileHandoffState = () => {
+    if (typeof window === 'undefined') return;
+    localStorage.removeItem(MOBILE_HANDOFF_KEY);
+    clearMobileReturnParams();
+  };
+  const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const resolveStatus = (deadlineTs: number, isOpen: boolean, forVotes: number, againstVotes: number): ProposalStatus => {
     const now = Math.floor(Date.now() / 1000);
@@ -678,11 +842,11 @@ export default function VoteVault() {
     }
   };
 
-  const persistWalletSession = (walletType: WalletName, address: string) => {
+  const persistWalletSession = (walletType: WalletName, address: string, mode: ConnectionMode) => {
     if (typeof window === 'undefined') return;
     localStorage.setItem(
       WALLET_SESSION_KEY,
-      JSON.stringify({ walletType, walletAddress: address }),
+      JSON.stringify({ walletType, walletAddress: address, mode }),
     );
   };
 
@@ -696,6 +860,7 @@ export default function VoteVault() {
     setIsConnected(false);
     setWalletAddress('');
     setWalletAccount(null);
+    setConnectionMode('injected');
     setTokenBalance('0');
     setSelectedWallet(null);
     setView('landing');
@@ -724,6 +889,7 @@ export default function VoteVault() {
   const handleConnect = async () => {
     if (!selectedWallet) return alert("Please select a Starknet wallet.");
     const normalizedInput = walletAddress.trim();
+    const inputCanonical = normalizedInput ? normalizeHexFelt(normalizedInput) : null;
 
     setIsVerifyingWallet(true);
     try {
@@ -739,28 +905,37 @@ export default function VoteVault() {
           : walletType === 'Argent X'
             ? browserWallets.starknet_argentX
             : browserWallets.starknet;
-      const injectedWallet = preferredWallet || browserWallets.starknet;
-
-      if (!injectedWallet?.enable) {
-        alert('Selected wallet extension was not detected in this browser.');
+      let connectedWallet: InjectedStarknetWallet | null | undefined = preferredWallet || browserWallets.starknet;
+      let mode: ConnectionMode = 'injected';
+      if (!connectedWallet?.enable) {
+        if (walletType === 'Braavos' && handoffToMobileWalletApp('Braavos', inputCanonical || undefined)) {
+          return;
+        }
+        connectedWallet = await connectWithMobileWallet(walletType, 'alwaysAsk');
+        mode = 'mobile';
+      }
+      if (!connectedWallet?.enable) {
+        if (handoffToMobileWalletApp(walletType as WalletName, inputCanonical || undefined)) {
+          return;
+        }
+        alert('Unable to open wallet app automatically. Open your wallet app manually and use its dApp browser for VoteVault.');
         return;
       }
 
-      const accounts = await injectedWallet.enable();
+      const accounts = await connectedWallet.enable();
       const selectedAddressRaw = (
-        injectedWallet.selectedAddress || injectedWallet.account?.address || accounts?.[0] || ''
+        connectedWallet.selectedAddress || connectedWallet.account?.address || accounts?.[0] || ''
       ).toLowerCase();
-      const inputCanonical = normalizedInput ? normalizeHexFelt(normalizedInput) : null;
       const selectedCanonical = selectedAddressRaw ? normalizeHexFelt(selectedAddressRaw) : null;
       const resolvedAddress = selectedCanonical || inputCanonical;
       if (!resolvedAddress) {
-        return alert("Please enter a valid wallet address starting with 0x, or unlock the selected wallet extension.");
+        return alert("Unable to read wallet address from signer. Enter a valid 0x address or reconnect wallet.");
       }
       if (inputCanonical && selectedCanonical && selectedCanonical !== inputCanonical) {
         console.warn('Manual address differs from selected extension account. Using extension account address.');
       }
 
-      const walletChainId = await readWalletChainId(injectedWallet);
+      const walletChainId = await readWalletChainId(connectedWallet);
       let rpcProvider: RpcProvider | null = null;
       try {
         rpcProvider = await getHealthyProvider();
@@ -776,36 +951,32 @@ export default function VoteVault() {
       // Optional deployed-account verification via RPC.
       // If this RPC check is unavailable but wallet is injected correctly, allow connection.
       if (rpcProvider) {
-        try {
-          await rpcProvider.getClassHashAt(resolvedAddress, 'latest');
-        } catch (deployCheckError) {
-          if (isUndeployedAccountError(deployCheckError)) {
-            alert('Wallet address is not an existing deployed Starknet wallet on this network.');
-            return;
-          }
-          if (!selectedCanonical) {
-            if (isRpcConnectivityIssue(deployCheckError)) {
-              alert('Wallet deployment check failed due to RPC/network issue. Reconnect wallet and retry.');
-            } else {
-              alert('Unable to verify wallet deployment from RPC. Ensure wallet is unlocked on Starknet Sepolia and retry.');
-            }
-            return;
-          }
-          console.warn('Skipping deployment verification due transient RPC issue:', deployCheckError);
+        const deploymentStatus = await verifyWalletDeployment(resolvedAddress);
+        if (deploymentStatus === 'undeployed') {
+          alert('Wallet address is not an existing deployed Starknet wallet on this network.');
+          return;
+        }
+        if (deploymentStatus === 'unknown' && !selectedCanonical) {
+          alert('Unable to verify wallet deployment from RPC. Ensure wallet is unlocked on Starknet Sepolia and retry.');
+          return;
         }
       }
 
-      if (!injectedWallet.account?.execute) {
-        alert('Connected wallet account does not expose execute(). Please reconnect with Argent X or Braavos.');
+      if (!connectedWallet.account?.execute) {
+        if (handoffToMobileWalletApp(walletType, resolvedAddress)) {
+          return;
+        }
+        alert('Connected wallet account does not expose execute(). Reconnect and approve full wallet access.');
         return;
       }
-      setWalletAccount(injectedWallet.account);
+      setWalletAccount(connectedWallet.account);
+      setConnectionMode(mode);
 
       setWalletAddress(resolvedAddress);
       setIsConnected(true);
       setShowWalletModal(false);
       setView('dashboard');
-      persistWalletSession(walletType, resolvedAddress);
+      persistWalletSession(walletType, resolvedAddress, mode);
       void loadOnchainProposals(resolvedAddress);
       void refreshTokenBalance(resolvedAddress);
     } catch (error) {
@@ -823,6 +994,33 @@ export default function VoteVault() {
     }
   };
 
+  const requireSigningAccount = async () => {
+    const connectedAccount = await resolveConnectedWalletAccount();
+    if (connectedAccount?.execute) return connectedAccount;
+    if (isConnected && walletAddress) {
+      const preferredWallet = (selectedWallet as WalletName) || 'Starknet Wallet';
+      if (connectionMode === 'mobile') {
+        const mobileWallet = await connectWithMobileWallet(preferredWallet, 'alwaysAsk');
+        if (mobileWallet?.account?.execute) {
+          setWalletAccount(mobileWallet.account);
+          if (mobileWallet.selectedAddress) {
+            const canonical = normalizeHexFelt(String(mobileWallet.selectedAddress));
+            if (canonical) setWalletAddress(canonical);
+          }
+          return mobileWallet.account;
+        }
+        if (handoffToMobileWalletApp(preferredWallet)) {
+          alert(`Opening ${preferredWallet} app for signing. Approve connection and return to submit your vote.`);
+          return null;
+        }
+      }
+      alert('Wallet signer is not active. Reconnect wallet and approve account access in Braavos/Argent.');
+      return null;
+    }
+    alert('Connect Starknet wallet first.');
+    return null;
+  };
+
   const handleAdminAuth = () => {
     if (adminAuthInput === "ADMIN123") {
       setIsAdminAuthenticated(true);
@@ -835,8 +1033,8 @@ export default function VoteVault() {
   const handlePublishProposal = async (e: React.FormEvent) => {
     e.preventDefault();
     if(!formTitle || !formSummary || !formDeadline) return alert("Please fill in all required fields.");
-    const connectedAccount = await resolveConnectedWalletAccount();
-    if (!connectedAccount?.execute) return alert("Connect Starknet wallet first.");
+    const connectedAccount = await requireSigningAccount();
+    if (!connectedAccount) return;
     const votingAddress = await resolvePrivateVotingAddress();
     if (!votingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
     if (formTitle.length > 31) return alert("Proposal title must be 31 characters or fewer (felt252 short string).");
@@ -880,8 +1078,8 @@ export default function VoteVault() {
   const handleVote = async (type: 'for' | 'against') => {
     if (selectedProposal.hasVoted || selectedProposal.status !== 'Live') return;
     if (!isConnected) return alert("Connect wallet to vote.");
-    const connectedAccount = await resolveConnectedWalletAccount();
-    if (!connectedAccount?.execute) return alert("Connect Starknet wallet first.");
+    const connectedAccount = await requireSigningAccount();
+    if (!connectedAccount) return;
     const votingAddress = await resolvePrivateVotingAddress();
     if (!votingAddress) return alert("PrivateVoting contract address is missing in frontend env.");
     const resolveProposalContractId = async (): Promise<{ id: number | null; noOnchain: boolean }> => {
@@ -977,8 +1175,8 @@ export default function VoteVault() {
 
   const handleMintTokens = async () => {
     if (!isAdminAuthenticated) return alert('Admin auth required.');
-    const connectedAccount = await resolveConnectedWalletAccount();
-    if (!connectedAccount?.execute) return alert('Connect Starknet wallet first.');
+    const connectedAccount = await requireSigningAccount();
+    if (!connectedAccount) return;
     if (!/^0x[a-fA-F0-9]{1,64}$/.test(mintRecipient.trim())) return alert('Enter a valid recipient wallet address.');
     if (!/^\d+$/.test(mintAmount) || mintAmount === '0') return alert('Enter a valid positive token amount.');
 
@@ -1097,6 +1295,103 @@ export default function VoteVault() {
 
   useEffect(() => {
     let cancelled = false;
+    const reconnectFromMobileHandoff = async () => {
+      if (typeof window === 'undefined') return;
+      const url = new URL(window.location.href);
+      const queryWallet = cleanEnv(url.searchParams.get(MOBILE_WALLET_PARAM) || '');
+      const queryReturn = url.searchParams.get(MOBILE_RETURN_PARAM) === '1';
+      const queryAddress = normalizeHexFelt(cleanEnv(url.searchParams.get('vv_addr') || ''));
+      const rawHandoff = localStorage.getItem(MOBILE_HANDOFF_KEY);
+      if (!queryReturn && !rawHandoff) return;
+
+      let walletType: WalletName = 'Starknet Wallet';
+      let addressHint = queryAddress;
+      if (rawHandoff) {
+        try {
+          const parsed = JSON.parse(rawHandoff) as {
+            walletType?: WalletName;
+            addressHint?: string;
+            ts?: number;
+          };
+          if (parsed.ts && Date.now() - parsed.ts > 10 * 60 * 1000) {
+            clearMobileHandoffState();
+            return;
+          }
+          if (parsed.walletType) walletType = parsed.walletType;
+          const storedHint = normalizeHexFelt(cleanEnv(parsed.addressHint || ''));
+          if (!addressHint && storedHint) addressHint = storedHint;
+        } catch {
+          // ignore parsing errors and continue with query params
+        }
+      }
+      if (queryWallet === 'Braavos' || queryWallet === 'Argent X' || queryWallet === 'Starknet Wallet') {
+        walletType = queryWallet;
+      }
+
+      let connectedWallet: InjectedStarknetWallet | null | undefined = null;
+      let mode: ConnectionMode = 'mobile';
+      for (let attempt = 0; attempt < 10; attempt += 1) {
+        if (cancelled) return;
+        const browserWallets = window as Window & {
+          starknet?: InjectedStarknetWallet;
+          starknet_braavos?: InjectedStarknetWallet;
+          starknet_argentX?: InjectedStarknetWallet;
+        };
+        const preferredInjected =
+          walletType === 'Braavos'
+            ? browserWallets.starknet_braavos
+            : walletType === 'Argent X'
+              ? browserWallets.starknet_argentX
+              : browserWallets.starknet;
+        connectedWallet = preferredInjected || browserWallets.starknet;
+        mode = connectedWallet?.enable ? 'injected' : 'mobile';
+
+        // If wallet injection is not ready yet, fallback to session-based reconnect paths.
+        if (!connectedWallet?.enable) {
+          connectedWallet = await connectWithMobileWallet(
+            walletType,
+            attempt < 2 ? 'neverAsk' : 'canAsk',
+          );
+          mode = 'mobile';
+        }
+
+        if (connectedWallet?.enable && connectedWallet.account?.execute) break;
+        await sleep(700);
+      }
+      if (!connectedWallet?.enable || !connectedWallet.account?.execute) return;
+
+      const accounts = await connectedWallet.enable();
+      const selectedCanonical = normalizeHexFelt(
+        String(connectedWallet.selectedAddress || connectedWallet.account?.address || accounts?.[0] || ''),
+      );
+      const resolvedAddress = selectedCanonical || addressHint;
+      if (!resolvedAddress) return;
+      const deploymentStatus = await verifyWalletDeployment(resolvedAddress);
+      if (deploymentStatus === 'undeployed') return;
+
+      if (cancelled) return;
+      setSelectedWallet(walletType);
+      setWalletAddress(resolvedAddress);
+      setWalletAccount(connectedWallet.account);
+      setConnectionMode(mode);
+      setIsConnected(true);
+      setShowWalletModal(false);
+      setView('dashboard');
+      persistWalletSession(walletType, resolvedAddress, mode);
+      clearMobileHandoffState();
+      await loadOnchainProposals(resolvedAddress);
+      await refreshTokenBalance(resolvedAddress);
+    };
+
+    reconnectFromMobileHandoff();
+    return () => {
+      cancelled = true;
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
 
     const restoreSession = async () => {
       if (typeof window === 'undefined') return;
@@ -1104,12 +1399,46 @@ export default function VoteVault() {
       if (!raw) return;
 
       try {
-        const parsed = JSON.parse(raw) as { walletType?: WalletName; walletAddress?: string };
+        const parsed = JSON.parse(raw) as { walletType?: WalletName; walletAddress?: string; mode?: ConnectionMode | 'verified' };
         const walletType = parsed.walletType;
         const storedAddress = (parsed.walletAddress || '').trim();
+        const mode: ConnectionMode = parsed.mode === 'mobile' || parsed.mode === 'verified'
+          ? 'mobile'
+          : 'injected';
 
         if (!walletType || !/^0x[a-fA-F0-9]{1,64}$/.test(storedAddress)) {
           clearWalletSession();
+          return;
+        }
+
+        const storedCanonical = normalizeHexFelt(storedAddress);
+        if (!storedCanonical) {
+          clearWalletSession();
+          return;
+        }
+
+        if (mode === 'mobile') {
+          const mobileWallet = await connectWithMobileWallet(walletType, 'neverAsk');
+          if (!mobileWallet?.account?.execute) {
+            clearWalletSession();
+            return;
+          }
+          const selectedCanonical = normalizeHexFelt(
+            String(mobileWallet.selectedAddress || mobileWallet.account?.address || ''),
+          );
+          if (selectedCanonical && selectedCanonical !== storedCanonical) {
+            clearWalletSession();
+            return;
+          }
+          if (cancelled) return;
+          setSelectedWallet(walletType);
+          setWalletAddress(selectedCanonical || storedCanonical);
+          setWalletAccount(mobileWallet.account);
+          setConnectionMode('mobile');
+          setIsConnected(true);
+          setView('dashboard');
+          await loadOnchainProposals(selectedCanonical || storedCanonical);
+          await refreshTokenBalance(selectedCanonical || storedCanonical);
           return;
         }
 
@@ -1135,13 +1464,7 @@ export default function VoteVault() {
         const selectedAddressRaw = (
           injectedWallet.selectedAddress || injectedWallet.account?.address || accounts?.[0] || ''
         ).toLowerCase();
-        const storedCanonical = normalizeHexFelt(storedAddress);
         const selectedCanonical = selectedAddressRaw ? normalizeHexFelt(selectedAddressRaw) : null;
-
-        if (!storedCanonical) {
-          clearWalletSession();
-          return;
-        }
 
         if (selectedCanonical && selectedCanonical !== storedCanonical) {
           clearWalletSession();
@@ -1153,6 +1476,7 @@ export default function VoteVault() {
         setSelectedWallet(walletType);
         setWalletAddress(storedCanonical);
         setWalletAccount(injectedWallet.account);
+        setConnectionMode('injected');
         setIsConnected(true);
         setView('dashboard');
         await loadOnchainProposals(storedCanonical);
@@ -1225,6 +1549,7 @@ export default function VoteVault() {
         <div className="relative">
           {isConnected ? (
             <button onClick={() => setIsWalletDropdownOpen(!isWalletDropdownOpen)} className="flex items-center gap-2 md:gap-3 bg-[#0d1117] border border-white/10 px-3 md:px-5 py-2.5 md:py-3 rounded-xl text-[9px] md:text-[10px] font-mono text-white">
+              {connectionMode === 'mobile' && <span className="hidden md:inline text-[8px] uppercase text-amber-400 font-black">MOBILE</span>}
               <span className="hidden xs:inline">{`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}</span><span className="xs:hidden">{`${walletAddress.slice(0, 4)}...`}</span> <ChevronDown size={14} />
             </button>
           ) : (
@@ -1633,8 +1958,8 @@ export default function VoteVault() {
                           rows={3}
                           className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white outline-none text-xs font-mono resize-none"
                         />
-                        <button disabled={isSubmittingTx || !isConnected} onClick={() => handleVote('for')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] transition-transform ${isSubmittingTx || !isConnected ? 'bg-white/10 text-slate-500 cursor-not-allowed' : 'bg-[#86e8f8] text-black hover:scale-[1.02]'}`}>{isSubmittingTx ? 'Submitting...' : 'Vote For'}</button>
-                        <button disabled={isSubmittingTx || !isConnected} onClick={() => handleVote('against')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] border ${isSubmittingTx || !isConnected ? 'bg-white/10 text-slate-500 cursor-not-allowed border-white/10' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>Vote Against</button>
+                        <button disabled={isSubmittingTx || !isConnected || !canSignTransactions} onClick={() => handleVote('for')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] transition-transform ${isSubmittingTx || !isConnected || !canSignTransactions ? 'bg-white/10 text-slate-500 cursor-not-allowed' : 'bg-[#86e8f8] text-black hover:scale-[1.02]'}`}>{isSubmittingTx ? 'Submitting...' : 'Vote For'}</button>
+                        <button disabled={isSubmittingTx || !isConnected || !canSignTransactions} onClick={() => handleVote('against')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] border ${isSubmittingTx || !isConnected || !canSignTransactions ? 'bg-white/10 text-slate-500 cursor-not-allowed border-white/10' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>Vote Against</button>
                       </div>
                     ) : (
                       <div className="py-6 border-2 border-green-500/20 rounded-2xl text-green-500 font-black uppercase text-[10px] flex flex-col items-center gap-2 bg-green-500/5">
@@ -1643,7 +1968,13 @@ export default function VoteVault() {
                     )}
                     <p className="text-center text-[9px] font-black uppercase text-[#86e8f8] mt-4 tracking-[0.2em]">Voting Power: {tokenBalance} VV</p>
                     <p className="text-center text-[8px] font-bold uppercase opacity-30 mt-6 tracking-widest">
-                      {selectedProposal.status === 'Live' ? (isConnected ? 'Wallet connected can vote' : 'Connect wallet to vote') : 'This proposal is no longer active'}
+                      {selectedProposal.status === 'Live'
+                        ? (isConnected
+                          ? (canSignTransactions
+                            ? 'Wallet connected can vote'
+                            : 'Wallet signer unavailable. Reconnect and approve wallet access')
+                          : 'Connect wallet to vote')
+                        : 'This proposal is no longer active'}
                     </p>
                   </div>
 
@@ -1801,7 +2132,17 @@ export default function VoteVault() {
                       className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-6 text-white text-sm outline-none focus:border-[#86e8f8]/50 font-mono"
                     />
                     <div className="text-center space-y-4">
-                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Enter wallet address to connect</p>
+                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Enter wallet address (optional)</p>
+                      <p className="text-[9px] font-bold text-slate-500">On mobile, Confirm Access opens your selected wallet app (Braavos/Argent) for signing.</p>
+                      {selectedWallet === 'Braavos' && (
+                        <button
+                          type="button"
+                          onClick={() => handoffToMobileWalletApp('Braavos', normalizeHexFelt(walletAddress.trim()) || undefined)}
+                          className="w-full py-3 rounded-xl font-black uppercase text-[10px] border border-[#86e8f8]/30 text-[#86e8f8] bg-[#86e8f8]/10"
+                        >
+                          Braavos Mobile App Connect
+                        </button>
+                      )}
                       <button
                         onClick={handleConnect}
                         disabled={isVerifyingWallet || (walletAddress.trim() !== '' && !/^0x[a-fA-F0-9]{1,64}$/.test(walletAddress.trim()))}
