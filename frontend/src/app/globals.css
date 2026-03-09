@@ -18,6 +18,409 @@
   .feat-link:hover .arrow {
     transform: translateY(-0.25rem);
   }
+
+  .vv-shell {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .vv-page-background {
+    position: absolute;
+    inset: 0;
+    background-position: center;
+    background-size: cover;
+    opacity: 0.62;
+    transform: scale(1.05);
+    filter: saturate(1.18) contrast(1.08) brightness(1.04);
+    transition:
+      opacity 500ms ease,
+      background-image 450ms ease;
+    animation: vvBackgroundDrift 16s ease-in-out infinite alternate;
+  }
+
+  .vv-bg-landing .vv-page-background {
+    background-image: none;
+    animation: none;
+    opacity: 0;
+    filter: none;
+  }
+
+  .vv-bg-landing .vv-grain-layer,
+  .vv-bg-landing .vv-glow {
+    display: none;
+  }
+
+  .vv-bg-dashboard .vv-page-background {
+    background-image:
+      linear-gradient(180deg, rgba(4, 8, 13, 0.46) 0%, rgba(4, 8, 13, 0.7) 70%, rgba(5, 7, 10, 0.82) 100%),
+      url('/votevault-bg-2.jpeg');
+  }
+
+  .vv-bg-admin .vv-page-background {
+    background-image:
+      linear-gradient(180deg, rgba(4, 8, 13, 0.46) 0%, rgba(4, 8, 13, 0.7) 70%, rgba(5, 7, 10, 0.82) 100%),
+      url('/votevault-bg-3.jpeg');
+  }
+
+  .vv-bg-proposal .vv-page-background {
+    background-image:
+      linear-gradient(180deg, rgba(4, 8, 13, 0.46) 0%, rgba(4, 8, 13, 0.7) 70%, rgba(5, 7, 10, 0.82) 100%),
+      url('/votevault-bg-1.jpeg');
+  }
+
+  .vv-grain-layer {
+    position: absolute;
+    inset: -40%;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.055) 0.6px, transparent 0.6px);
+    background-size: 3px 3px;
+    opacity: 0.1;
+    animation: vvGrainDrift 14s linear infinite;
+  }
+
+  .vv-glow {
+    position: absolute;
+    border-radius: 9999px;
+    filter: blur(78px);
+    opacity: 0.54;
+    animation: vvGlowFloat 8s ease-in-out infinite;
+  }
+
+  .vv-glow-a {
+    width: min(44vw, 480px);
+    height: min(44vw, 480px);
+    top: -12%;
+    left: -8%;
+    background: radial-gradient(circle at 45% 40%, rgba(134, 232, 248, 0.48), rgba(134, 232, 248, 0.03));
+  }
+
+  .vv-glow-b {
+    width: min(36vw, 420px);
+    height: min(36vw, 420px);
+    top: 34%;
+    right: -10%;
+    animation-delay: -5s;
+    background: radial-gradient(circle at 45% 40%, rgba(245, 158, 11, 0.25), rgba(245, 158, 11, 0.02));
+  }
+
+  .vv-glow-c {
+    width: min(34vw, 360px);
+    height: min(34vw, 360px);
+    bottom: -12%;
+    left: 30%;
+    animation-delay: -2.5s;
+    background: radial-gradient(circle at 45% 40%, rgba(56, 189, 248, 0.34), rgba(56, 189, 248, 0.02));
+  }
+
+  .vv-page-enter {
+    animation: vvPageIn 420ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .vv-reveal {
+    animation: vvSectionRise 650ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .vv-hover-lift {
+    transition:
+      transform 260ms ease,
+      box-shadow 260ms ease,
+      border-color 260ms ease;
+  }
+
+  .vv-hover-lift:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.35);
+  }
+
+  .vv-landing-stage {
+    position: relative;
+    isolation: isolate;
+  }
+
+  .vv-landing-animated-bg {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .vv-landing-surface,
+  .vv-landing-grid,
+  .vv-landing-links,
+  .vv-landing-rings,
+  .vv-landing-readability-mask {
+    position: absolute;
+    inset: 0;
+  }
+
+  .vv-landing-surface {
+    background-image:
+      linear-gradient(120deg, rgba(5, 7, 10, 0.62) 0%, rgba(5, 7, 10, 0.7) 44%, rgba(5, 7, 10, 0.78) 100%),
+      radial-gradient(circle at 18% 24%, rgba(134, 232, 248, 0.34), transparent 42%),
+      radial-gradient(circle at 84% 20%, rgba(245, 158, 11, 0.24), transparent 36%),
+      radial-gradient(circle at 72% 74%, rgba(16, 185, 129, 0.2), transparent 44%),
+      url('/votevault-bg-1.jpeg');
+    background-size: cover;
+    background-position: center;
+    filter: saturate(1.14) contrast(1.07);
+    animation: vvLandingPan 18s ease-in-out infinite alternate;
+  }
+
+  .vv-landing-grid {
+    opacity: 0.34;
+    background-image:
+      repeating-linear-gradient(
+        to right,
+        rgba(134, 232, 248, 0.14) 0,
+        rgba(134, 232, 248, 0.14) 1px,
+        transparent 1px,
+        transparent 74px
+      ),
+      repeating-linear-gradient(
+        to bottom,
+        rgba(134, 232, 248, 0.1) 0,
+        rgba(134, 232, 248, 0.1) 1px,
+        transparent 1px,
+        transparent 74px
+      );
+    animation: vvGridDrift 22s linear infinite;
+  }
+
+  .vv-landing-links {
+    opacity: 0.48;
+    background-image:
+      linear-gradient(115deg, transparent 0 36%, rgba(134, 232, 248, 0.28) 49%, transparent 60%),
+      linear-gradient(-112deg, transparent 0 42%, rgba(56, 189, 248, 0.2) 53%, transparent 65%),
+      linear-gradient(22deg, transparent 0 62%, rgba(16, 185, 129, 0.24) 70%, transparent 80%);
+    background-size: 150% 150%;
+    animation: vvLinksSweep 14s ease-in-out infinite;
+  }
+
+  .vv-landing-rings {
+    opacity: 0.5;
+    background-image:
+      radial-gradient(circle at 26% 62%, transparent 0 94px, rgba(134, 232, 248, 0.24) 96px, transparent 100px),
+      radial-gradient(circle at 76% 38%, transparent 0 120px, rgba(56, 189, 248, 0.2) 122px, transparent 126px),
+      radial-gradient(circle at 62% 78%, transparent 0 84px, rgba(16, 185, 129, 0.2) 86px, transparent 92px);
+    animation: vvRingsPulse 10s ease-in-out infinite;
+  }
+
+  .vv-landing-readability-mask {
+    background:
+      radial-gradient(circle at 16% 22%, rgba(5, 7, 10, 0.26) 0%, rgba(5, 7, 10, 0.56) 38%, rgba(5, 7, 10, 0.72) 74%),
+      linear-gradient(180deg, rgba(5, 7, 10, 0.22), rgba(5, 7, 10, 0.6));
+  }
+
+  .vv-landing-node {
+    position: absolute;
+    width: 11px;
+    height: 11px;
+    border-radius: 9999px;
+    background: #86e8f8;
+    box-shadow:
+      0 0 0 5px rgba(134, 232, 248, 0.16),
+      0 0 30px rgba(134, 232, 248, 0.34);
+    animation: vvNodePulse 4.2s ease-in-out infinite;
+  }
+
+  .vv-node-1 { top: 18%; left: 22%; }
+  .vv-node-2 { top: 24%; left: 63%; animation-delay: -1.2s; }
+  .vv-node-3 { top: 46%; left: 32%; animation-delay: -2.6s; }
+  .vv-node-4 { top: 58%; left: 72%; animation-delay: -0.8s; }
+  .vv-node-5 { top: 74%; left: 24%; animation-delay: -2.1s; }
+  .vv-node-6 { top: 38%; left: 84%; animation-delay: -1.7s; }
+  .vv-node-7 { top: 83%; left: 58%; animation-delay: -3.1s; }
+  .vv-node-8 { top: 30%; left: 12%; animation-delay: -0.4s; }
+
+  .vv-node-2,
+  .vv-node-6 {
+    background: #f59e0b;
+    box-shadow:
+      0 0 0 5px rgba(245, 158, 11, 0.16),
+      0 0 30px rgba(245, 158, 11, 0.36);
+  }
+
+  .vv-node-4,
+  .vv-node-7 {
+    background: #10b981;
+    box-shadow:
+      0 0 0 5px rgba(16, 185, 129, 0.16),
+      0 0 30px rgba(16, 185, 129, 0.32);
+  }
+
+  .vv-media-card {
+    position: relative;
+    box-shadow: 0 18px 45px rgba(0, 0, 0, 0.34);
+    transition:
+      transform 340ms cubic-bezier(0.22, 1, 0.36, 1),
+      box-shadow 340ms cubic-bezier(0.22, 1, 0.36, 1),
+      border-color 340ms ease;
+  }
+
+  .vv-media-card:hover {
+    transform: translateY(-8px) scale(1.01);
+    box-shadow: 0 24px 70px rgba(0, 0, 0, 0.44);
+    border-color: rgba(134, 232, 248, 0.45);
+  }
+
+  .vv-media-fill {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    transform: scale(1.03);
+    filter: saturate(1.12) contrast(1.08);
+    transition: transform 700ms ease;
+  }
+
+  .vv-media-card:hover .vv-media-fill {
+    transform: scale(1.08);
+  }
+
+  .vv-floating-sticker {
+    animation: vvStickerFloat 5.2s ease-in-out infinite;
+    filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.45));
+  }
+
+  .vv-readable h1,
+  .vv-readable h2,
+  .vv-readable h3,
+  .vv-readable h4 {
+    text-shadow: 0 4px 18px rgba(0, 0, 0, 0.32);
+  }
+
+  .vv-readable p,
+  .vv-readable li,
+  .vv-readable label {
+    letter-spacing: 0.01em;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .vv-page-background,
+    .vv-grain-layer,
+    .vv-glow,
+    .vv-page-enter,
+    .vv-reveal,
+    .vv-landing-surface,
+    .vv-landing-grid,
+    .vv-landing-links,
+    .vv-landing-rings,
+    .vv-landing-node,
+    .vv-floating-sticker {
+      animation: none !important;
+    }
+  }
+}
+
+@keyframes vvBackgroundDrift {
+  0% {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  100% {
+    transform: scale(1.11) translate3d(0, -1.4%, 0);
+  }
+}
+
+@keyframes vvGrainDrift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(6%, -4%, 0);
+  }
+}
+
+@keyframes vvGlowFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -14px, 0);
+  }
+}
+
+@keyframes vvPageIn {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes vvSectionRise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 20px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+@keyframes vvLandingPan {
+  0% {
+    transform: scale(1.04) translate3d(0, 0, 0);
+  }
+  100% {
+    transform: scale(1.1) translate3d(-1.8%, -1.2%, 0);
+  }
+}
+
+@keyframes vvGridDrift {
+  0% {
+    transform: translate3d(0, 0, 0);
+  }
+  100% {
+    transform: translate3d(-42px, -34px, 0);
+  }
+}
+
+@keyframes vvLinksSweep {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(2.4%, -1.6%, 0);
+  }
+}
+
+@keyframes vvRingsPulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.45;
+  }
+  50% {
+    transform: scale(1.03);
+    opacity: 0.62;
+  }
+}
+
+@keyframes vvNodePulse {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0) scale(0.9);
+    opacity: 0.78;
+  }
+  50% {
+    transform: translate3d(0, -5px, 0) scale(1.16);
+    opacity: 1;
+  }
+}
+
+@keyframes vvStickerFloat {
+  0%,
+  100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
 }
 @layer base {
   :root {

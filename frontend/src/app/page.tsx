@@ -150,6 +150,31 @@ const DEFAULT_PROPOSALS: Proposal[] = [
   }
 ];
 
+const WEB_MEDIA_VIDEOS = [
+  {
+    src: 'https://player.vimeo.com/progressive_redirect/playback/759230927/rendition/240p/file.mp4?loc=external&oauth2_token_id=1223210874&signature=367c5a470bb6c263e05c58de63e5d8a2daaeacd489dfc336a5466840f1aa2d01',
+    poster: 'https://pikwizard.com/pw/medium/7b5d4b665d56b777ea575dc7604de295.jpg',
+  },
+  {
+    src: 'https://player.vimeo.com/progressive_redirect/playback/768319179/rendition/240p/file.mp4?loc=external&oauth2_token_id=1223210874&signature=58acec641790efb20a07d442e0023af736ab8df34bf64aec36bf046fce898a01',
+    poster: 'https://pikwizard.com/pw/medium/d86daf408d318941fe10f73e2b954115.jpg',
+  },
+  {
+    src: 'https://player.vimeo.com/progressive_redirect/playback/716950503/rendition/240p/file.mp4?loc=external&oauth2_token_id=1223210874&signature=149084874dfdc53452cbfbbfb0a256540c7d49ef50b1c6e42d6240ee1fed1369',
+    poster: 'https://pikwizard.com/pw/medium/89183408171ec6ebf78fe89150a98dbe.jpg',
+  },
+];
+
+const WEB_MEDIA_IMAGES = [
+  'https://pikwizard.com/pw/medium/7b5d4b665d56b777ea575dc7604de295.jpg',
+  'https://pikwizard.com/pw/medium/d86daf408d318941fe10f73e2b954115.jpg',
+  'https://pikwizard.com/pw/medium/89183408171ec6ebf78fe89150a98dbe.jpg',
+  '/votevault-bg-1.jpeg',
+  '/votevault-bg-2.jpeg',
+  '/votevault-bg-3.jpeg',
+];
+const GREEN_PADLOCK_VIDEO = WEB_MEDIA_VIDEOS[2];
+
 export default function VoteVault() {
    // --- THEME STATE ---
   const [theme, setTheme] = useState('dark');
@@ -176,6 +201,14 @@ export default function VoteVault() {
 
   // --- COMPONENT STATE ---
   const [view, setView] = useState('landing'); 
+  const viewBackgroundClass =
+    view === 'dashboard'
+      ? 'vv-bg-dashboard'
+      : view === 'proposal-detail'
+        ? 'vv-bg-proposal'
+        : view === 'admin-create'
+          ? 'vv-bg-admin'
+          : 'vv-bg-landing';
   const [isAdminMode, setIsAdminMode] = useState(false);
   const [isAdminAuthenticated, setIsAdminAuthenticated] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -838,7 +871,7 @@ export default function VoteVault() {
       case 'Passed': return 'bg-blue-500/10 text-blue-500 border-blue-500/20';
       case 'Pending': return 'bg-amber-500/10 text-amber-500 border-amber-500/20';
       case 'Rejected': return 'bg-red-500/10 text-red-500 border-red-500/20';
-      default: return 'bg-white/5 text-slate-400 border-white/10';
+      default: return 'bg-white/5 text-slate-100 border-white/10';
     }
   };
 
@@ -1502,19 +1535,26 @@ export default function VoteVault() {
 
   
   return (
-    <div className="min-h-screen bg-[#05070a] text-slate-400 font-sans flex flex-col overflow-x-hidden selection:bg-[#86e8f8] selection:text-black">
+    <div className={`vv-shell ${viewBackgroundClass} min-h-screen bg-[#05070a] text-slate-100 font-sans flex flex-col overflow-x-hidden selection:bg-[#86e8f8] selection:text-black`}>
+      <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
+        <div className="vv-page-background" />
+        <div className="vv-grain-layer" />
+        <div className="vv-glow vv-glow-a" />
+        <div className="vv-glow vv-glow-b" />
+        <div className="vv-glow vv-glow-c" />
+      </div>
       
       {/* SIDEBAR */}
       <div className={`fixed inset-0 z-[250] bg-black/80 backdrop-blur-md transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
         <div className={`absolute left-0 top-0 bottom-0 w-[85%] sm:w-[350px] bg-[#0d1117] p-6 flex flex-col transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="flex justify-between items-center mb-12">
             <span className="text-white font-black uppercase text-xl">VoteVault</span>
-            <CloseIcon className="cursor-pointer text-slate-500" onClick={() => setIsSidebarOpen(false)} />
+            <CloseIcon className="cursor-pointer text-slate-200" onClick={() => setIsSidebarOpen(false)} />
           </div>
 
           <div className="bg-black/40 p-1.5 rounded-2xl border border-white/5 mb-8 flex">
-            <button onClick={() => setIsAdminMode(false)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${!isAdminMode ? 'bg-[#86e8f8] text-black' : 'text-slate-500'}`}>Voter</button>
-            <button onClick={() => setIsAdminMode(true)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${isAdminMode ? 'bg-amber-500 text-black' : 'text-slate-500'}`}>Admin</button>
+            <button onClick={() => setIsAdminMode(false)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${!isAdminMode ? 'bg-[#86e8f8] text-black' : 'text-slate-200'}`}>Voter</button>
+            <button onClick={() => setIsAdminMode(true)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${isAdminMode ? 'bg-amber-500 text-black' : 'text-slate-200'}`}>Admin</button>
           </div>
         
           
@@ -1563,9 +1603,25 @@ export default function VoteVault() {
           )}
         </div>
       </header>
-      <main className="flex-grow w-full">
+      <main className={`${view === 'landing' ? '' : 'vv-readable relative z-10'} flex-grow w-full`}>
         {view === 'landing' && (
-          <div className="animate-in fade-in duration-700 w-full overflow-hidden">
+          <div className="vv-landing-stage animate-in fade-in duration-700 w-full overflow-hidden">
+            <div className="vv-landing-animated-bg" aria-hidden>
+              <div className="vv-landing-surface" />
+              <div className="vv-landing-grid" />
+              <div className="vv-landing-links" />
+              <div className="vv-landing-rings" />
+              <div className="vv-landing-readability-mask" />
+              <span className="vv-landing-node vv-node-1" />
+              <span className="vv-landing-node vv-node-2" />
+              <span className="vv-landing-node vv-node-3" />
+              <span className="vv-landing-node vv-node-4" />
+              <span className="vv-landing-node vv-node-5" />
+              <span className="vv-landing-node vv-node-6" />
+              <span className="vv-landing-node vv-node-7" />
+              <span className="vv-landing-node vv-node-8" />
+            </div>
+            <div className="relative z-10">
             {/* --- RESTRUCTURED DOUBLE COLUMN HERO --- */}
             <section className="max-w-7xl mx-auto px-6 pt-16 md:pt-32 pb-24 md:pb-40">
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
@@ -1701,16 +1757,34 @@ export default function VoteVault() {
                     <button onClick={() => setShowWalletModal(true)} className="w-full sm:w-auto bg-[#86e8f8] text-black px-10 md:px-14 py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest">Get Started</button>
                 </div>
             </section>
+            </div>
           </div>
         )}
         
 
         {view === 'dashboard' && (
-          <div className="p-4 md:p-16 max-w-7xl mx-auto w-full animate-in fade-in">
+          <div className="vv-page-enter p-4 md:p-16 max-w-7xl mx-auto w-full animate-in fade-in">
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mb-10 md:mb-14">
+              <div className="vv-media-card lg:col-span-2 overflow-hidden rounded-[2.2rem] border border-white/10 bg-black/45">
+                <video
+                  className="vv-media-fill min-h-[14rem] md:min-h-[20rem]"
+                  src={WEB_MEDIA_VIDEOS[1].src}
+                  poster={WEB_MEDIA_VIDEOS[1].poster}
+                  autoPlay
+                  loop
+                  muted
+                  playsInline
+                  preload="metadata"
+                />
+              </div>
+              <div className="vv-media-card overflow-hidden rounded-[2.2rem] border border-white/10 bg-black/45">
+                <img src={WEB_MEDIA_IMAGES[0]} alt="" className="vv-media-fill min-h-[14rem] md:min-h-[20rem]" loading="lazy" />
+              </div>
+            </div>
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 md:gap-8 mb-12 md:mb-20">
               <div className="flex bg-[#0d1117] p-1 md:p-1.5 rounded-[1.5rem] md:rounded-[2rem] border border-white/10 w-full lg:w-auto overflow-x-auto no-scrollbar">
                 {['All', 'Live', 'Passed', 'Pending', 'Rejected'].map(f => (
-                  <button key={f} onClick={()=>setActiveFilter(f)} className={`px-4 md:px-8 py-2.5 md:py-3 rounded-[1.2rem] md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${activeFilter === f ? 'bg-[#86e8f8] text-black' : 'text-slate-500'}`}>{f}</button>
+                  <button key={f} onClick={()=>setActiveFilter(f)} className={`px-4 md:px-8 py-2.5 md:py-3 rounded-[1.2rem] md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${activeFilter === f ? 'bg-[#86e8f8] text-black' : 'text-slate-200'}`}>{f}</button>
                 ))}
               </div>
               <div className="relative w-full lg:w-96">
@@ -1721,8 +1795,8 @@ export default function VoteVault() {
 
             {filteredProposals.length === 0 ? (
               <div className="bg-[#0d1117] border border-white/10 rounded-[2rem] md:rounded-[3.5rem] p-8 md:p-12 text-center space-y-4">
-                <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-slate-400">No On-Chain Proposals Yet</p>
-                <p className="text-xs md:text-sm text-slate-500 max-w-xl mx-auto">Admin must publish at least one proposal on-chain before users can generate proof and vote.</p>
+                <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-slate-100">No On-Chain Proposals Yet</p>
+                <p className="text-xs md:text-sm text-slate-200 max-w-xl mx-auto">Admin must publish at least one proposal on-chain before users can generate proof and vote.</p>
                 {isAdminAuthenticated && (
                   <button onClick={() => setView('admin-create')} className="bg-amber-500 text-black px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.2em]">
                     Create Proposal
@@ -1734,7 +1808,7 @@ export default function VoteVault() {
                 {filteredProposals.map(p => {
                   const { forP } = getPercentages(p.forVotes, p.againstVotes);
                   return (
-                    <div key={p.id} onClick={() => { setSelectedProposal(p); setView('proposal-detail'); }} className="bg-[#0d1117] p-8 md:p-10 rounded-[2rem] md:rounded-[3.5rem] border border-white/5 hover:border-[#86e8f8]/30 cursor-pointer flex flex-col h-full">
+                    <div key={p.id} onClick={() => { setSelectedProposal(p); setView('proposal-detail'); }} className="vv-hover-lift bg-[#0d1117]/95 backdrop-blur-sm p-8 md:p-10 rounded-[2rem] md:rounded-[3.5rem] border border-white/5 hover:border-[#86e8f8]/30 cursor-pointer flex flex-col h-full">
                       <div className="flex justify-between items-center mb-8">
                         <span className={`px-3 py-1 border rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest ${getTagStyle(p.status)}`}>{p.status}</span>
                         <span className="text-[8px] md:text-[9px] font-black uppercase text-slate-600 tracking-widest">{p.tag}</span>
@@ -1742,7 +1816,7 @@ export default function VoteVault() {
                       <h3 className="text-xl md:text-2xl font-black text-white mb-6 uppercase leading-tight line-clamp-2">{p.title}</h3>
                       
                       <div className="space-y-3 mb-8">
-                        <div className="flex justify-between text-[8px] md:text-[10px] font-black uppercase text-slate-500">
+                        <div className="flex justify-between text-[8px] md:text-[10px] font-black uppercase text-slate-200">
                           <span className="text-green-500">For: {Math.round(forP)}%</span>
                           <span className="text-red-500">Against: {Math.round(100 - forP)}%</span>
                         </div>
@@ -1750,7 +1824,7 @@ export default function VoteVault() {
                           <div style={{ width: `${forP}%` }} className="h-full bg-green-500" />
                         </div>
                       </div>
-                      <div className="mt-auto pt-6 border-t border-white/5 text-[9px] md:text-[10px] font-black uppercase text-slate-500 flex justify-between items-center">
+                      <div className="mt-auto pt-6 border-t border-white/5 text-[9px] md:text-[10px] font-black uppercase text-slate-200 flex justify-between items-center">
                         View Details <ChevronRight size={16}/>
                       </div>
                     </div>
@@ -1762,18 +1836,35 @@ export default function VoteVault() {
         )}
 
         {view === 'admin-create' && (
-          <div className="p-6 md:p-16 max-w-3xl mx-auto w-full animate-in slide-in-from-bottom-8">
-             <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-slate-500 font-black text-[10px] uppercase mb-10"><ChevronLeft size={18}/> Cancel</button>
+          <div className="vv-page-enter p-6 md:p-16 max-w-3xl mx-auto w-full animate-in slide-in-from-bottom-8">
+             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
+               <div className="vv-media-card overflow-hidden rounded-[2rem] border border-white/10 bg-black/45">
+                 <video
+                   className="vv-media-fill min-h-[12rem] md:min-h-[15rem]"
+                   src={WEB_MEDIA_VIDEOS[0].src}
+                   poster={WEB_MEDIA_VIDEOS[0].poster}
+                   autoPlay
+                   loop
+                   muted
+                   playsInline
+                   preload="metadata"
+                 />
+               </div>
+               <div className="vv-media-card overflow-hidden rounded-[2rem] border border-white/10 bg-black/45">
+                 <img src={WEB_MEDIA_IMAGES[3]} alt="" className="vv-media-fill min-h-[12rem] md:min-h-[15rem]" loading="lazy" />
+               </div>
+             </div>
+             <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-slate-200 font-black text-[10px] uppercase mb-10"><ChevronLeft size={18}/> Cancel</button>
              <h2 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-10">New Proposal</h2>
              
              <form onSubmit={handlePublishProposal} className="space-y-6 md:space-y-8 bg-[#0d1117] p-8 md:p-14 rounded-[2rem] md:rounded-[3.5rem] border border-white/10 shadow-2xl">
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Title</label>
+                  <label className="text-[10px] font-black uppercase text-slate-200 tracking-widest">Title</label>
                   <input value={formTitle} onChange={e=>setFormTitle(e.target.value)} type="text" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 md:p-5 text-white outline-none focus:border-[#86e8f8]/50" required />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Category</label>
+                    <label className="text-[10px] font-black uppercase text-slate-200 tracking-widest">Category</label>
                     <select value={formTag} onChange={e=>setFormTag(e.target.value)} className="w-full bg-black/40 border border-white/10 rounded-xl p-4 md:p-5 text-white outline-none appearance-none">
                       <option value="Technical">Technical</option>
                       <option value="Treasury">Treasury</option>
@@ -1781,12 +1872,12 @@ export default function VoteVault() {
                     </select>
                   </div>
                   <div className="space-y-3">
-                    <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Deadline</label>
+                    <label className="text-[10px] font-black uppercase text-slate-200 tracking-widest">Deadline</label>
                     <input value={formDeadline} onChange={e=>setFormDeadline(e.target.value)} type="date" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 md:p-5 text-white outline-none" required />
                   </div>
                 </div>
                 <div className="space-y-3">
-                  <label className="text-[10px] font-black uppercase text-slate-500 tracking-widest">Summary</label>
+                  <label className="text-[10px] font-black uppercase text-slate-200 tracking-widest">Summary</label>
                   <textarea value={formSummary} onChange={e=>setFormSummary(e.target.value)} rows={3} className="w-full bg-black/40 border border-white/10 rounded-xl p-4 md:p-5 text-white outline-none resize-none" required />
                 </div>
                 <button type="submit" disabled={isSubmittingTx} className={`w-full py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest flex items-center justify-center gap-3 ${isSubmittingTx ? 'bg-white/10 text-slate-500 cursor-not-allowed' : 'bg-[#86e8f8] text-black'}`}>{isSubmittingTx ? 'Publishing...' : 'Publish Proposal'}</button>
@@ -1794,7 +1885,7 @@ export default function VoteVault() {
 
              <div className="mt-8 space-y-4 bg-[#0d1117] p-8 md:p-10 rounded-[2rem] border border-white/10">
                <h3 className="text-white font-black uppercase text-sm tracking-widest">Mint VV Coin</h3>
-               <p className="text-[10px] text-slate-500 uppercase tracking-[0.2em]">Admin Distribution</p>
+               <p className="text-[10px] text-slate-200 uppercase tracking-[0.2em]">Admin Distribution</p>
                <input value={mintRecipient} onChange={e => setMintRecipient(e.target.value)} type="text" placeholder="Recipient wallet address" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white outline-none" />
                <input value={mintAmount} onChange={e => setMintAmount(e.target.value)} type="number" min="1" placeholder="Amount" className="w-full bg-black/40 border border-white/10 rounded-xl p-4 text-white outline-none" />
                <button type="button" onClick={handleMintTokens} disabled={isSubmittingTx} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] tracking-widest ${isSubmittingTx ? 'bg-white/10 text-slate-500 cursor-not-allowed' : 'bg-amber-500 text-black'}`}>{isSubmittingTx ? 'Processing...' : 'Mint Tokens'}</button>
@@ -1803,13 +1894,13 @@ export default function VoteVault() {
         )}
 
        {view === 'proposal-detail' && (
-          <div className="p-6 md:p-16 max-w-7xl mx-auto animate-in slide-in-from-right-8 duration-500">
+          <div className="vv-page-enter p-6 md:p-16 max-w-7xl mx-auto animate-in slide-in-from-right-8 duration-500">
              {/* TOP NAVIGATION */}
              <div className="flex justify-between items-center mb-12">
                 <button onClick={() => setView('dashboard')} className="flex items-center gap-2 opacity-50 font-black uppercase text-[10px] hover:opacity-100 transition-opacity">
                    <ChevronLeft size={16}/> Back
                 </button>
-                <div className={`px-4 py-2 rounded-xl border text-[10px] font-mono ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white' : 'bg-white border-black/10 text-black'}`}>
+               <div className={`px-4 py-2 rounded-xl border text-[10px] font-mono ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white' : 'bg-white border-black/10 text-black'}`}>
                    {isConnected ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : 'Not connected'}
                 </div>
              </div>
@@ -1819,7 +1910,7 @@ export default function VoteVault() {
                <div className="lg:col-span-2 space-y-8">
                   <div className="space-y-4">
                      <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 border rounded-lg text-[8px] font-black uppercase tracking-widest ${selectedProposal.status === 'Live' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-slate-500/10 text-slate-500 border-slate-500/20'}`}>
+                        <span className={`px-3 py-1 border rounded-lg text-[8px] font-black uppercase tracking-widest ${selectedProposal.status === 'Live' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-slate-500/10 text-slate-200 border-slate-500/20'}`}>
                           {selectedProposal.status}
                         </span>
                         <span className="text-[10px] font-bold opacity-40 uppercase">Ends {selectedProposal.deadline}</span>
@@ -1902,7 +1993,7 @@ export default function VoteVault() {
                     <h4 className="font-black uppercase text-[10px] mb-8 opacity-40 text-center">Cast Your Vote</h4>
                     
                     {selectedProposal.status !== 'Live' ? (
-                      <div className="py-6 border-2 border-white/5 rounded-2xl text-slate-500 font-black uppercase text-[10px] flex flex-col items-center gap-2 bg-white/5 text-center px-4">
+                      <div className="py-6 border-2 border-white/5 rounded-2xl text-slate-200 font-black uppercase text-[10px] flex flex-col items-center gap-2 bg-white/5 text-center px-4">
                         <Ban size={24} className="opacity-30"/> Voting is {selectedProposal.status}
                       </div>
                     ) : !selectedProposal.hasVoted ? (
@@ -1933,7 +2024,7 @@ export default function VoteVault() {
                             {isGeneratingDaoProof ? 'Generating...' : 'Generate Proof Against'}
                           </button>
                         </div>
-                        <p className="text-[9px] uppercase tracking-[0.15em] text-slate-500">
+                        <p className="text-[9px] uppercase tracking-[0.15em] text-slate-200">
                           Auto-fills from connected wallet. You can still edit the fields manually.
                         </p>
                         <input
@@ -2024,17 +2115,17 @@ export default function VoteVault() {
           </div>
         )}
       {/* FOOTER */}
-      <footer className="bg-[#080a0f] pt-20 md:pt-32 pb-12 md:pb-16 px-6 md:px-12 border-t border-white/5">
+      <footer className="bg-[#080a0f]/95 backdrop-blur-md pt-20 md:pt-32 pb-12 md:pb-16 px-6 md:px-12 border-t border-white/5">
           <div className="max-w-7xl mx-auto">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-12 md:gap-16 mb-16 md:mb-24">
               <div className="sm:col-span-2 lg:col-span-2 space-y-6 md:space-y-8">
                 <div className="text-white font-black uppercase text-2xl md:text-3xl tracking-tighter">VoteVault</div>
-                <p className="text-slate-500 text-xs md:text-sm leading-relaxed max-w-sm">
+                <p className="text-slate-200 text-xs md:text-sm leading-relaxed max-w-sm">
                   The standard for private decentralized decision making using zero-knowledge technology.
                 </p>
                 <div className="flex gap-4">
                   {[ MessageSquare].map((Icon, i) => (
-                    <a key={i} href="#" className="w-10 h-10 md:w-12 md:h-12 bg-white/5 rounded-xl flex items-center justify-center text-slate-400">
+                    <a key={i} href="#" className="w-10 h-10 md:w-12 md:h-12 bg-white/5 rounded-xl flex items-center justify-center text-slate-100">
                       <Icon size={20} />
                     </a>
                   ))}
@@ -2043,14 +2134,14 @@ export default function VoteVault() {
 
               <div className="space-y-6">
                 <h4 className="text-white font-black text-[10px] uppercase tracking-widest">Protocol</h4>
-                <ul className="space-y-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <ul className="space-y-3 text-[10px] font-bold uppercase tracking-wider text-slate-200">
                   <li>Documentation</li><li>ZK-Proofs Lab</li><li>SDK</li><li>Security</li>
                 </ul>
               </div>
 
               <div className="space-y-6">
                 <h4 className="text-white font-black text-[10px] uppercase tracking-widest">Ecosystem</h4>
-                <ul className="space-y-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <ul className="space-y-3 text-[10px] font-bold uppercase tracking-wider text-slate-200">
                   <li>Grants</li><li>Ambassadors</li><li>Partner DAOs</li>
                 </ul>
               </div>
@@ -2082,11 +2173,23 @@ export default function VoteVault() {
           {/* Backdrop with heavy blur as per your code */}
           <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => {setShowWalletModal(false); setSelectedWallet(null); setWalletAddress('');}} />
           
-          <div className="relative bg-[#0d1117] border border-white/10 w-full max-w-md rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-14 animate-in zoom-in-95 duration-300">
+          <div className="relative bg-[#0d1117] border border-white/10 w-full max-w-xl rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-14 animate-in zoom-in-95 duration-300">
             
             {!selectedWallet ? (
               /* STAGE 1: SELECT WALLET (With Logos) */
               <div className="animate-in fade-in slide-in-from-bottom-4">
+                <div className="vv-media-card overflow-hidden rounded-[2rem] border border-white/10 bg-black/45 mb-8">
+                  <video
+                    className="vv-media-fill min-h-[9rem] md:min-h-[11rem]"
+                    src={WEB_MEDIA_VIDEOS[0].src}
+                    poster={WEB_MEDIA_VIDEOS[0].poster}
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="metadata"
+                  />
+                </div>
                 <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter mb-10 text-center italic">Connect Identity</h3>
                 
                 <div className="grid gap-4">
@@ -2102,7 +2205,7 @@ export default function VoteVault() {
                         </div>
                         <div className="text-left">
                           <span className="block text-white font-black uppercase text-[11px] tracking-widest">{w.name}</span>
-                          <span className="block text-slate-500 text-[9px] uppercase font-bold mt-1">{w.desc}</span>
+                          <span className="block text-slate-200 text-[9px] uppercase font-bold mt-1">{w.desc}</span>
                         </div>
                       </div>
                       <ChevronRight size={18} className="text-white opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
@@ -2113,6 +2216,9 @@ export default function VoteVault() {
             ) : (
               /* STAGE 2: WALLET ADDRESS INPUT */
               <div className="animate-in slide-in-from-right-4">
+                 <div className="vv-media-card overflow-hidden rounded-[2rem] border border-white/10 bg-black/45 mb-8">
+                   <img src={WEB_MEDIA_IMAGES[5]} alt="" className="vv-media-fill min-h-[9rem] md:min-h-[11rem]" loading="lazy" />
+                 </div>
                  <div className="flex items-center gap-4 mb-10">
                     <button onClick={() => {setSelectedWallet(null); setWalletAddress('');}} className="p-2 hover:bg-white/5 rounded-full text-white transition-colors">
                       <ChevronLeft size={24}/>
@@ -2132,8 +2238,8 @@ export default function VoteVault() {
                       className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-6 text-white text-sm outline-none focus:border-[#86e8f8]/50 font-mono"
                     />
                     <div className="text-center space-y-4">
-                      <p className="text-[10px] font-black uppercase text-slate-500 tracking-[0.3em]">Enter wallet address (optional)</p>
-                      <p className="text-[9px] font-bold text-slate-500">On mobile, Confirm Access opens your selected wallet app (Braavos/Argent) for signing.</p>
+                      <p className="text-[10px] font-black uppercase text-slate-200 tracking-[0.3em]">Enter wallet address (optional)</p>
+                      <p className="text-[9px] font-bold text-slate-200">On mobile, Confirm Access opens your selected wallet app (Braavos/Argent) for signing.</p>
                       {selectedWallet === 'Braavos' && (
                         <button
                           type="button"
