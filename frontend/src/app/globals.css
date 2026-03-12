@@ -27,45 +27,289 @@
   .vv-page-background {
     position: absolute;
     inset: 0;
+    background-image:
+      linear-gradient(180deg, rgba(4, 8, 13, 0.46) 0%, rgba(4, 8, 13, 0.7) 70%, rgba(5, 7, 10, 0.82) 100%),
+      url('/votevault-main-bg.jpg');
     background-position: center;
     background-size: cover;
     opacity: 0.62;
-    transform: scale(1.05);
+    transform: scale(1);
     filter: saturate(1.18) contrast(1.08) brightness(1.04);
     transition:
       opacity 500ms ease,
       background-image 450ms ease;
-    animation: vvBackgroundDrift 16s ease-in-out infinite alternate;
+    animation: none;
   }
 
   .vv-bg-landing .vv-page-background {
-    background-image: none;
-    animation: none;
-    opacity: 0;
-    filter: none;
-  }
-
-  .vv-bg-landing .vv-grain-layer,
-  .vv-bg-landing .vv-glow {
-    display: none;
+    background-image:
+      linear-gradient(180deg, rgba(4, 8, 13, 0.46) 0%, rgba(4, 8, 13, 0.7) 70%, rgba(5, 7, 10, 0.82) 100%),
+      url('/votevault-main-bg.jpg');
   }
 
   .vv-bg-dashboard .vv-page-background {
     background-image:
       linear-gradient(180deg, rgba(4, 8, 13, 0.46) 0%, rgba(4, 8, 13, 0.7) 70%, rgba(5, 7, 10, 0.82) 100%),
-      url('/votevault-bg-2.jpeg');
+      url('/votevault-main-bg.jpg');
   }
 
   .vv-bg-admin .vv-page-background {
     background-image:
       linear-gradient(180deg, rgba(4, 8, 13, 0.46) 0%, rgba(4, 8, 13, 0.7) 70%, rgba(5, 7, 10, 0.82) 100%),
-      url('/votevault-bg-3.jpeg');
+      url('/votevault-main-bg.jpg');
   }
 
   .vv-bg-proposal .vv-page-background {
     background-image:
       linear-gradient(180deg, rgba(4, 8, 13, 0.46) 0%, rgba(4, 8, 13, 0.7) 70%, rgba(5, 7, 10, 0.82) 100%),
+      url('/votevault-main-bg.jpg');
+  }
+
+  .vv-theme-light .vv-page-background {
+    opacity: 0.44;
+    filter: saturate(0.94) contrast(1) brightness(1.2);
+  }
+
+  .vv-theme-light .vv-grain-layer {
+    opacity: 0.04;
+  }
+
+  .vv-theme-light .vv-glow {
+    opacity: 0.28;
+  }
+
+  .vv-theme-light .vv-landing-surface {
+    background-image:
+      linear-gradient(120deg, rgba(241, 245, 249, 0.56) 0%, rgba(241, 245, 249, 0.68) 44%, rgba(241, 245, 249, 0.74) 100%),
+      radial-gradient(circle at 18% 24%, rgba(14, 165, 233, 0.24), transparent 42%),
+      radial-gradient(circle at 84% 20%, rgba(245, 158, 11, 0.18), transparent 36%),
+      radial-gradient(circle at 72% 74%, rgba(16, 185, 129, 0.16), transparent 44%),
       url('/votevault-bg-1.jpeg');
+  }
+
+  .vv-theme-light .vv-landing-readability-mask {
+    background:
+      radial-gradient(circle at 16% 22%, rgba(241, 245, 249, 0.12) 0%, rgba(241, 245, 249, 0.26) 38%, rgba(241, 245, 249, 0.42) 74%),
+      linear-gradient(180deg, rgba(241, 245, 249, 0.08), rgba(241, 245, 249, 0.3));
+  }
+
+  .vv-theme-light .vv-landing-stage .text-white {
+    color: #0f172a !important;
+  }
+
+  .vv-theme-light .vv-landing-stage .text-slate-500 {
+    color: #334155 !important;
+  }
+
+  .vv-theme-light .vv-media-card {
+    box-shadow: 0 14px 32px rgba(15, 23, 42, 0.12);
+  }
+
+  .vv-theme-light [class*='bg-[#0d1117]'] {
+    background-color: rgba(255, 255, 255, 0.88) !important;
+  }
+
+  .vv-theme-light [class*='bg-[#05070a]'] {
+    background-color: #eaf1fb !important;
+  }
+
+  .vv-theme-light [class*='bg-black/'] {
+    background-color: rgba(15, 23, 42, 0.06) !important;
+  }
+
+  .vv-theme-light [class*='border-white/'] {
+    border-color: rgba(15, 23, 42, 0.14) !important;
+  }
+
+  .vv-theme-light [class*='text-white'] {
+    color: #0f172a !important;
+  }
+
+  .vv-theme-light [class*='text-slate-100'] {
+    color: #1e293b !important;
+  }
+
+  .vv-theme-light [class*='text-slate-200'] {
+    color: #334155 !important;
+  }
+
+  .vv-theme-light [class*='text-slate-300'] {
+    color: #475569 !important;
+  }
+
+  .vv-theme-light [class*='text-slate-500'] {
+    color: #64748b !important;
+  }
+
+  .vv-theme-light [class*='text-slate-400'] {
+    color: #475569 !important;
+  }
+
+  .vv-theme-light [class*='text-slate-600'] {
+    color: #334155 !important;
+  }
+
+  .vv-theme-light [class*='text-slate-700'] {
+    color: #1e293b !important;
+  }
+
+  .vv-theme-light {
+    color: #0f172a;
+  }
+
+  .vv-theme-light .vv-readable h1,
+  .vv-theme-light .vv-readable h2,
+  .vv-theme-light .vv-readable h3,
+  .vv-theme-light .vv-readable h4 {
+    color: #0f172a !important;
+  }
+
+  .vv-theme-light .vv-readable p,
+  .vv-theme-light .vv-readable li,
+  .vv-theme-light .vv-readable label,
+  .vv-theme-light .vv-readable small {
+    color: #1e293b !important;
+  }
+
+  .vv-theme-light .vv-landing-stage p {
+    color: #334155 !important;
+  }
+
+  .vv-theme-light .vv-readable .opacity-30 {
+    opacity: 0.62 !important;
+  }
+
+  .vv-theme-light .vv-readable .opacity-40 {
+    opacity: 0.7 !important;
+  }
+
+  .vv-theme-light .vv-readable .opacity-50 {
+    opacity: 0.78 !important;
+  }
+
+  .vv-theme-light .vv-readable .opacity-60 {
+    opacity: 0.84 !important;
+  }
+
+  .vv-theme-light input,
+  .vv-theme-light textarea,
+  .vv-theme-light select {
+    color: #0f172a !important;
+  }
+
+  .vv-theme-light input::placeholder,
+  .vv-theme-light textarea::placeholder {
+    color: #475569 !important;
+    opacity: 1;
+  }
+
+  .vv-theme-dark {
+    color: #e2e8f0;
+  }
+
+  .vv-theme-dark .vv-readable h1,
+  .vv-theme-dark .vv-readable h2,
+  .vv-theme-dark .vv-readable h3,
+  .vv-theme-dark .vv-readable h4 {
+    color: #f8fafc !important;
+  }
+
+  .vv-theme-dark .vv-readable p,
+  .vv-theme-dark .vv-readable li,
+  .vv-theme-dark .vv-readable label,
+  .vv-theme-dark .vv-readable small {
+    color: #cbd5e1 !important;
+  }
+
+  .vv-theme-dark [class*='text-slate-500'] {
+    color: #cbd5e1 !important;
+  }
+
+  .vv-theme-dark [class*='text-slate-600'] {
+    color: #94a3b8 !important;
+  }
+
+  .vv-theme-dark [class*='text-slate-700'] {
+    color: #cbd5e1 !important;
+  }
+
+  .vv-theme-dark [class*='text-slate-400'] {
+    color: #94a3b8 !important;
+  }
+
+  .vv-theme-dark .opacity-30 {
+    opacity: 0.72 !important;
+  }
+
+  .vv-theme-dark .opacity-40 {
+    opacity: 0.78 !important;
+  }
+
+  .vv-theme-dark .opacity-50 {
+    opacity: 0.84 !important;
+  }
+
+  .vv-theme-dark .opacity-60 {
+    opacity: 0.9 !important;
+  }
+
+  .vv-theme-dark input,
+  .vv-theme-dark textarea,
+  .vv-theme-dark select {
+    color: #f8fafc !important;
+  }
+
+  .vv-theme-dark input::placeholder,
+  .vv-theme-dark textarea::placeholder {
+    color: #94a3b8 !important;
+    opacity: 1;
+  }
+
+  /* Global fallback: any unclassified text inherits explicit theme contrast */
+  .vv-theme-light :is(h1, h2, h3, h4, h5, h6, p, li, label, small, span, a, button):not([class*='text-']) {
+    color: #0f172a !important;
+  }
+
+  .vv-theme-dark :is(h1, h2, h3, h4, h5, h6, p, li, label, small, span, a, button):not([class*='text-']) {
+    color: #f8fafc !important;
+  }
+
+  .vv-theme-light :is(p, li, label, small, span):not([class*='text-']) {
+    color: #1e293b !important;
+  }
+
+  .vv-theme-dark :is(p, li, label, small, span):not([class*='text-']) {
+    color: #cbd5e1 !important;
+  }
+
+  /* Explicit accent remap: darker in light mode, brighter in dark mode */
+  .vv-theme-light [class*='text-[#86e8f8]'] {
+    color: #0e7490 !important;
+    text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+  }
+
+  .vv-theme-light [class*='border-[#86e8f8]'] {
+    border-color: rgba(14, 116, 144, 0.5) !important;
+  }
+
+  .vv-theme-light [class*='bg-[#86e8f8]/10'] {
+    background-color: rgba(14, 116, 144, 0.16) !important;
+  }
+
+  .vv-theme-dark [class*='text-[#0369a1]'],
+  .vv-theme-dark [class*='text-[#0c4a6e]'] {
+    color: #67e8f9 !important;
+  }
+
+  .vv-theme-dark [class*='border-[#0284c7]'],
+  .vv-theme-dark [class*='border-[#0369a1]'] {
+    border-color: rgba(103, 232, 249, 0.55) !important;
+  }
+
+  .vv-grain-layer,
+  .vv-glow,
+  .vv-landing-animated-bg {
+    display: none !important;
   }
 
   .vv-grain-layer {

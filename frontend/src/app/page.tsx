@@ -53,6 +53,7 @@ const ONCHAIN_DAO_SUMMARY = 'On-chain DAO proposal stored in VoteVault.';
 type WalletName = 'Braavos' | 'Argent X' | 'Starknet Wallet';
 type ConnectionMode = 'injected' | 'mobile';
 type ProposalStatus = 'Live' | 'Passed' | 'Pending' | 'Rejected';
+type ThemeMode = 'dark' | 'light';
 
 type Proposal = {
   id: number;
@@ -106,6 +107,7 @@ const LAST_GOOD_RPC_KEY = 'votevault_last_good_rpc_v1';
 const MOBILE_HANDOFF_KEY = 'votevault_mobile_handoff_v1';
 const MOBILE_RETURN_PARAM = 'vv_mobile_return';
 const MOBILE_WALLET_PARAM = 'vv_wallet';
+const THEME_STORAGE_KEY = 'votevault_theme_v1';
 
 const DEFAULT_PROPOSALS: Proposal[] = [
   {
@@ -177,14 +179,14 @@ const GREEN_PADLOCK_VIDEO = WEB_MEDIA_VIDEOS[2];
 
 export default function VoteVault() {
    // --- THEME STATE ---
-  const [theme, setTheme] = useState('dark');
-  const toggleTheme = () => setTheme(prev => prev === 'dark' ? 'light' : 'dark');
+  const [theme, setTheme] = useState<ThemeMode>('dark');
+  const toggleTheme = () => setTheme((prev) => (prev === 'dark' ? 'light' : 'dark'));
 
   const team = [
     { name: "Amuka Treasure", role: "UI/UX Designer", img: "amuka.jpg" },
     { name: "Onyeka Princecharles", role: "Frontend Dev", img: "prinz.jpg" },
     { name: "Muhammed Abdullahi", role: "Backend Architect", img: "IMG-20260222-WA0009.jpg" },
-    { name: "Obi Akachukwu", role: "Smart-contract dev", img: "IMG-20260223-WA0001.jpg" }
+    { name: "Obi Akachukwu", role: "Smart-contract dev", img: "obi-akachukwu.png" }
   ];
 
   const faqs = [
@@ -217,6 +219,7 @@ export default function VoteVault() {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [isTeamOpen, setIsTeamOpen] = useState(false);
 
   // --- WALLET & AUTH STATE ---
   const [showWalletModal, setShowWalletModal] = useState(false);
@@ -1322,6 +1325,20 @@ export default function VoteVault() {
   };
 
   useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+    const nextTheme: ThemeMode = storedTheme === 'light' ? 'light' : 'dark';
+    setTheme(nextTheme);
+    document.documentElement.setAttribute('data-theme', nextTheme);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    localStorage.setItem(THEME_STORAGE_KEY, theme);
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
     loadOnchainProposals();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [privateVotingContractAddress]);
@@ -1535,7 +1552,10 @@ export default function VoteVault() {
 
   
   return (
-    <div className={`vv-shell ${viewBackgroundClass} min-h-screen bg-[#05070a] text-slate-100 font-sans flex flex-col overflow-x-hidden selection:bg-[#86e8f8] selection:text-black`}>
+    <div
+      data-theme={theme}
+      className={`vv-shell vv-theme-${theme} ${viewBackgroundClass} min-h-screen ${theme === 'dark' ? 'bg-[#05070a] text-slate-100' : 'bg-slate-50 text-slate-900'} font-sans flex flex-col overflow-x-hidden selection:bg-[#86e8f8] selection:text-black`}
+    >
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
         <div className="vv-page-background" />
         <div className="vv-grain-layer" />
@@ -1545,14 +1565,14 @@ export default function VoteVault() {
       </div>
       
       {/* SIDEBAR */}
-      <div className={`fixed inset-0 z-[250] bg-black/80 backdrop-blur-md transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-        <div className={`absolute left-0 top-0 bottom-0 w-[85%] sm:w-[350px] bg-[#0d1117] p-6 flex flex-col transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+      <div className={`fixed inset-0 z-[250] ${theme === 'dark' ? 'bg-black/80' : 'bg-slate-950/30'} backdrop-blur-md transition-opacity duration-300 ${isSidebarOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+        <div className={`absolute left-0 top-0 bottom-0 w-[85%] sm:w-[350px] ${theme === 'dark' ? 'bg-[#0d1117]' : 'bg-white'} p-6 flex flex-col transform transition-transform duration-300 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}`}>
           <div className="flex justify-between items-center mb-12">
-            <span className="text-white font-black uppercase text-xl">VoteVault</span>
-            <CloseIcon className="cursor-pointer text-slate-200" onClick={() => setIsSidebarOpen(false)} />
+            <span className={`font-black uppercase text-xl ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>VoteVault</span>
+            <CloseIcon className={`cursor-pointer ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`} onClick={() => setIsSidebarOpen(false)} />
           </div>
 
-          <div className="bg-black/40 p-1.5 rounded-2xl border border-white/5 mb-8 flex">
+          <div className={`p-1.5 rounded-2xl border mb-8 flex ${theme === 'dark' ? 'bg-black/40 border-white/5' : 'bg-slate-100 border-slate-300/70'}`}>
             <button onClick={() => setIsAdminMode(false)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${!isAdminMode ? 'bg-[#86e8f8] text-black' : 'text-slate-200'}`}>Voter</button>
             <button onClick={() => setIsAdminMode(true)} className={`flex-1 py-3 rounded-xl text-[10px] font-black uppercase transition-all ${isAdminMode ? 'bg-amber-500 text-black' : 'text-slate-200'}`}>Admin</button>
           </div>
@@ -1572,23 +1592,35 @@ export default function VoteVault() {
             </div>
           )}
 
-          <nav className="space-y-2 flex-grow">
-            <button onClick={() => {setView('dashboard'); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase transition-colors ${view === 'dashboard' ? 'bg-white/5 text-white' : 'hover:bg-white/5'}`}><LayoutDashboard size={18}/> Dashboard</button>
-            <button className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase hover:bg-white/5"><Shield size={18}/> Audit Logs</button>
-          </nav>
+	          <nav className="space-y-2 flex-grow">
+	            <button onClick={() => {setView('dashboard'); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase transition-colors ${view === 'dashboard' ? (theme === 'dark' ? 'bg-white/5 text-white' : 'bg-slate-200 text-slate-900') : (theme === 'dark' ? 'hover:bg-white/5 text-slate-200' : 'hover:bg-slate-100 text-slate-700')}`}><LayoutDashboard size={18}/> Dashboard</button>
+	            <button onClick={() => {setView('faq-page'); setIsSidebarOpen(false);}} className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase transition-colors ${view === 'faq-page' ? (theme === 'dark' ? 'bg-white/5 text-white' : 'bg-slate-200 text-slate-900') : (theme === 'dark' ? 'hover:bg-white/5 text-slate-200' : 'hover:bg-slate-100 text-slate-700')}`}><MessageSquare size={18}/> General FAQ</button>
+	            <button className={`w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase ${theme === 'dark' ? 'hover:bg-white/5 text-slate-200' : 'hover:bg-slate-100 text-slate-700'}`}><Shield size={18}/> Audit Logs</button>
+	          </nav>
           <button onClick={() => {disconnectWallet(); setIsSidebarOpen(false);}} className="w-full flex items-center gap-4 px-6 py-4 rounded-2xl text-[10px] font-bold uppercase text-red-500 hover:bg-red-500/5 transition-colors"><LogOut size={18}/> Disconnect</button>
         </div>
       </div>
 
       {/* HEADER */}
-      <header className="flex justify-between items-center px-4 md:px-12 py-6 border-b border-white/5 sticky top-0 bg-[#05070a]/90 backdrop-blur-xl z-[100]">
+      <header className={`flex justify-between items-center px-4 md:px-12 py-6 border-b sticky top-0 backdrop-blur-xl z-[100] ${theme === 'dark' ? 'border-white/5 bg-[#05070a]/90' : 'border-slate-300/70 bg-white/80'}`}>
         <div className="flex items-center gap-3 md:gap-8">
-          <button onClick={() => setIsSidebarOpen(true)} className="text-white"><Menu size={24} /></button>
-          <div onClick={() => setView('landing')} className="cursor-pointer font-black text-white text-lg md:text-xl uppercase tracking-tighter">VoteVault</div>
+          <button onClick={() => setIsSidebarOpen(true)} className={theme === 'dark' ? 'text-white' : 'text-slate-900'}><Menu size={24} /></button>
+          <div onClick={() => setView('landing')} className={`cursor-pointer font-black text-lg md:text-xl uppercase tracking-tighter ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>VoteVault</div>
         </div>
+        <div className="flex items-center gap-3 md:gap-4">
+          <button
+            id="theme-switcher"
+            onClick={toggleTheme}
+            className={`flex items-center gap-2 px-3 md:px-4 py-2.5 md:py-3 rounded-xl border text-[9px] md:text-[10px] font-black uppercase ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white' : 'bg-white border-slate-300 text-slate-900'}`}
+            aria-label={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+            title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+          >
+            {theme === 'dark' ? <Sun size={14} /> : <Moon size={14} />}
+            <span className="hidden md:inline">{theme === 'dark' ? 'Light' : 'Dark'} Mode</span>
+          </button>
         <div className="relative">
           {isConnected ? (
-            <button onClick={() => setIsWalletDropdownOpen(!isWalletDropdownOpen)} className="flex items-center gap-2 md:gap-3 bg-[#0d1117] border border-white/10 px-3 md:px-5 py-2.5 md:py-3 rounded-xl text-[9px] md:text-[10px] font-mono text-white">
+            <button onClick={() => setIsWalletDropdownOpen(!isWalletDropdownOpen)} className={`flex items-center gap-2 md:gap-3 px-3 md:px-5 py-2.5 md:py-3 rounded-xl text-[9px] md:text-[10px] font-mono border ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white' : 'bg-white border-slate-300 text-slate-900'}`}>
               {connectionMode === 'mobile' && <span className="hidden md:inline text-[8px] uppercase text-amber-400 font-black">MOBILE</span>}
               <span className="hidden xs:inline">{`${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}`}</span><span className="xs:hidden">{`${walletAddress.slice(0, 4)}...`}</span> <ChevronDown size={14} />
             </button>
@@ -1596,11 +1628,12 @@ export default function VoteVault() {
             <button onClick={() => setShowWalletModal(true)} className="bg-[#86e8f8] text-black px-5 md:px-8 py-2.5 md:py-3 rounded-xl font-black text-[9px] md:text-[10px] uppercase">Connect</button>
           )}
           {isWalletDropdownOpen && (
-            <div className="absolute right-0 mt-4 w-52 md:w-60 bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl p-2 z-[300]">
-              <button onClick={() => {navigator.clipboard.writeText(walletAddress); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-white/5 rounded-xl text-[10px] font-bold uppercase text-slate-300"><Copy size={14}/> Copy Address</button>
+            <div className={`absolute right-0 mt-4 w-52 md:w-60 rounded-2xl shadow-2xl p-2 z-[300] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/10' : 'bg-white border-slate-300'}`}>
+              <button onClick={() => {navigator.clipboard.writeText(walletAddress); setIsWalletDropdownOpen(false);}} className={`w-full flex items-center gap-3 px-4 py-4 rounded-xl text-[10px] font-bold uppercase ${theme === 'dark' ? 'hover:bg-white/5 text-slate-300' : 'hover:bg-slate-100 text-slate-700'}`}><Copy size={14}/> Copy Address</button>
               <button onClick={() => {disconnectWallet(); setIsWalletDropdownOpen(false);}} className="w-full flex items-center gap-3 px-4 py-4 hover:bg-red-500/10 text-red-500 rounded-xl text-[10px] font-bold uppercase"><LogOut size={14}/> Disconnect</button>
             </div>
           )}
+        </div>
         </div>
       </header>
       <main className={`${view === 'landing' ? '' : 'vv-readable relative z-10'} flex-grow w-full`}>
@@ -1627,176 +1660,205 @@ export default function VoteVault() {
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 lg:gap-20 items-center">
                 {/* Left Side: Text */}
                 <div className="text-left space-y-8 md:space-y-10 order-2 lg:order-1">
-                  <h1 className="text-4xl sm:text-6xl md:text-7xl xl:text-8xl font-black text-white leading-[1.05] tracking-tighter uppercase">
-                    Vote with <span className="text-[#86e8f8]">Privacy</span>,<br/> Trust with <span className="text-[#86e8f8]">Proof</span>
-                  </h1>
-                  <p className="text-slate-500 text-sm md:text-x0.5 max-w-xl leading-relaxed">
-                    Anonymous voting powered by cutting-edge zero-knowledge cryptography. Secure your DAO's future without compromising identity.
-                  </p>
+	                  <h1 className={`text-4xl sm:text-6xl md:text-7xl xl:text-8xl font-black leading-[1.05] tracking-tighter uppercase ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+	                    Vote with <span className={`${theme === 'dark' ? 'text-[#86e8f8]' : 'text-[#0c4a6e]'} drop-shadow-[0_2px_8px_rgba(14,165,233,0.25)]`}>Privacy</span>,<br/> Trust with <span className={`${theme === 'dark' ? 'text-[#86e8f8]' : 'text-[#0c4a6e]'} drop-shadow-[0_2px_8px_rgba(14,165,233,0.25)]`}>Proof</span>
+	                  </h1>
+	                  <p className={`text-sm md:text-base max-w-xl leading-relaxed font-semibold ${theme === 'dark' ? 'text-slate-100' : 'text-slate-800'}`}>
+	                    Anonymous voting powered by cutting-edge zero-knowledge cryptography. Secure your DAO's future without compromising identity.
+	                  </p>
                   <div className="flex flex-col sm:flex-row gap-4">
                     <button onClick={() => setShowWalletModal(true)} className="bg-[#86e8f8] text-black px-10 md:px-14 py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-[11px] tracking-[0.2em] hover:scale-105 transition-transform">Launch Governance</button>
                     <button className="bg-white/5 text-white border border-white/10 px-10 md:px-14 py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-[11px] tracking-[0.2em] hover:bg-white/10 transition-all">Read Whitepaper</button>
                   </div>
                 </div>
 
-                {/* Right Side: Visual Image/Graphic */}
-                <div className="order-1 lg:order-2 relative group">
-                  <div className="absolute -inset-4 bg-[#86e8f8]/10 rounded-[4rem] blur-3xl group-hover:bg-[#86e8f8]/20 transition-all duration-700" />
-                  <div className="relative bg-[#0d1117] border border-white/10 rounded-[3rem] md:rounded-[4rem] aspect-square flex items-center justify-center overflow-hidden shadow-2xl">
-                    {/* Stylized Cryptographic Illustration */}
-                    <div className="absolute inset-0 opacity-20 pointer-events-none">
-                      <div className="absolute top-10 left-10 w-32 h-32 border border-[#86e8f8] rounded-full animate-pulse" />
-                      <div className="absolute bottom-20 right-10 w-48 h-48 border border-[#86e8f8]/30 rounded-full" />
-                    </div>
-                    <div className="z-10 flex flex-col items-center gap-6">
-                      <img src="/hero-img.png" alt="Governance Visual" className="w-full h-full object-contain p-4" />
-                       <div className="px-6 py-2 bg-[#86e8f8]/10 border border-[#86e8f8]/20 rounded-full">
-                         <span className="text-[#86e8f8] font-mono text-[10px] uppercase tracking-[0.3em]">ZK-Proof Verified</span>
-                       </div>
-                    </div>
+	                {/* Right Side: Visual Image/Graphic */}
+		                <div className="order-1 lg:order-2 relative group">
+		                  <div className="absolute -inset-4 bg-[#86e8f8]/10 rounded-[4rem] blur-3xl group-hover:bg-[#86e8f8]/30 transition-all duration-700" />
+		                  <div className={`relative border rounded-[3rem] md:rounded-[4rem] aspect-square flex items-center justify-center overflow-hidden shadow-2xl transition-all duration-500 ${theme === 'dark' ? 'bg-black/90 border-white/20' : 'bg-white/95 border-slate-300/70'} group-hover:shadow-[0_0_80px_rgba(134,232,248,0.28)]`}>
+	                    {/* Stylized Cryptographic Illustration */}
+	                    <div className="absolute inset-0 opacity-20 pointer-events-none">
+	                      <div className="absolute top-10 left-10 w-32 h-32 border border-[#86e8f8] rounded-full animate-pulse" />
+	                      <div className="absolute bottom-20 right-10 w-48 h-48 border border-[#86e8f8]/30 rounded-full" />
+	                    </div>
+		                    <div className={`absolute inset-0 ${theme === 'dark' ? 'bg-gradient-to-br from-[#86e8f8]/10 via-transparent to-emerald-400/10' : 'bg-gradient-to-br from-white/35 via-white/10 to-[#86e8f8]/20'}`} />
+			                    <div className="z-10 flex flex-col items-center gap-3">
+			                      <div className={`w-[94%] h-[94%] rounded-[2.4rem] flex items-center justify-center transition-all duration-500 ${theme === 'dark' ? 'bg-black' : 'bg-white'} group-hover:shadow-[0_0_64px_rgba(134,232,248,0.5)]`}>
+			                        <img src="/hero-img.png" alt="Governance Visual" className="w-[152%] h-[152%] max-w-none object-contain transition-all duration-500 group-hover:scale-110 drop-shadow-[0_30px_56px_rgba(134,232,248,0.45)]" />
+			                      </div>
+			                       <div className={`px-6 py-2 rounded-full border shadow-lg ${theme === 'dark' ? 'bg-black/75 border-[#86e8f8]/60' : 'bg-white/95 border-[#0284c7]/40'}`}>
+			                         <span className={`font-mono text-[11px] font-bold uppercase tracking-[0.28em] ${theme === 'dark' ? 'text-[#86e8f8]' : 'text-[#0369a1]'}`}>ZK-Proof Verified</span>
+			                       </div>
+		                    </div>
                   </div>
                 </div>
               </div>
             </section>
 
             {/* HOW IT WORKS */}
-            <section className="py-20 md:py-32 px-6 max-w-7xl mx-auto">
-                <div className="text-center mb-16 md:mb-24 space-y-4">
-                  <h4 className="text-[#86e8f8] font-black uppercase text-[10px] tracking-[0.3em]">Protocol Flow</h4>
-                  <h2 className="text-3xl md:text-6xl font-black text-white uppercase tracking-tighter">How It Works</h2>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
+	            <section className="py-20 md:py-32 px-6 max-w-7xl mx-auto">
+		                <div className="text-center mb-16 md:mb-24 space-y-4">
+		                  <h4 className={`font-black uppercase text-xs md:text-sm tracking-[0.28em] ${theme === 'dark' ? 'text-[#86e8f8]' : 'text-[#0e7490]'}`}>Protocol Flow</h4>
+		                  <h2 className={`text-3xl md:text-6xl font-black uppercase tracking-tighter ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>How It Works</h2>
+		                </div>
+	                <div className="grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-12">
                   {[
                     { i: <UserCheck size={32}/>, t: "01. Authenticate", d: "Connect your wallet. We generate a unique ZK-Identity that proves your right without revealing your address." },
                     { i: <Fingerprint size={32}/>, t: "02. Cast Privately", d: "Your vote is wrapped in a cryptographic proof. It is valid, verified, and completely untraceable." },
                     { i: <CheckCircle2 size={32}/>, t: "03. Verify On-Chain", d: "Results are settled instantly on-chain. Anyone can verify the math, but no one can see who voted for what." }
-                  ].map((step, i) => (
-                    <div key={i} className="bg-[#0d1117] p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border border-white/5 space-y-6">
-                      <div className="w-14 h-14 bg-[#86e8f8] text-black rounded-xl flex items-center justify-center">{step.i}</div>
-                      <h3 className="text-white font-black uppercase text-lg md:text-xl tracking-tighter">{step.t}</h3>
-                      <p className="text-slate-500 text-xs md:text-sm leading-relaxed">{step.d}</p>
-                    </div>
-                  ))}
-                </div>
-            </section>
+	                  ].map((step, i) => (
+	                    <div key={i} className={`p-8 md:p-10 rounded-[2.5rem] md:rounded-[3rem] border space-y-6 ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-slate-300/70 shadow-sm'}`}>
+	                      <div className="w-14 h-14 bg-[#86e8f8] text-black rounded-xl flex items-center justify-center">{step.i}</div>
+	                      <h3 className={`font-black uppercase text-lg md:text-xl tracking-tighter ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{step.t}</h3>
+	                      <p className={`text-xs md:text-sm leading-relaxed ${theme === 'dark' ? 'text-slate-500' : 'text-slate-700'}`}>{step.d}</p>
+	                    </div>
+	                  ))}
+	                </div>
+	            </section>
 
             {/* THREE CARDS */}
-            <section className="py-10 md:py-20 px-6 max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">
-              {[{i: <ShieldCheck size={44}/>, t: "Identity Shield", d: "Your vote is verified on-chain without exposing your wallet address."},{i: <Globe size={44}/>, t: "ZK-Universal", d: "The standard for private decentralized decision making.", m: true},{i: <Zap size={44}/>, t: "Instant Finality", d: "Results are calculated instantly with cryptographic certainty."}].map((c, i) => (
-                <div key={i} className={`bg-[#0d1117] rounded-[2.5rem] md:rounded-[3.5rem] border ${c.m ? 'border-[#86e8f8]/40 md:-translate-y-12 shadow-2xl' : 'border-white/5'} p-10 md:p-12 text-center space-y-6 md:space-y-8 flex flex-col items-center justify-center`}>
-                  <div className="w-20 h-20 md:w-24 md:h-24 bg-[#86e8f8]/5 rounded-full flex items-center justify-center text-[#86e8f8]">{c.i}</div>
-                  <h3 className="text-white font-black uppercase text-xl md:text-2xl tracking-tighter">{c.t}</h3>
-                  <p className="text-slate-500 text-xs md:text-sm leading-relaxed">{c.d}</p>
-                </div>
-              ))}
-            </section>
+	            <section className="py-10 md:py-20 px-6 max-w-7xl mx-auto grid grid-cols-1 md:grid-cols-3 gap-8 md:gap-10">
+	              {[{i: <ShieldCheck size={44}/>, t: "Identity Shield", d: "Your vote is verified on-chain without exposing your wallet address."},{i: <Globe size={44}/>, t: "ZK-Universal", d: "The standard for private decentralized decision making.", m: true},{i: <Zap size={44}/>, t: "Instant Finality", d: "Results are calculated instantly with cryptographic certainty."}].map((c, i) => (
+	                <div key={i} className={`rounded-[2.5rem] md:rounded-[3.5rem] border ${theme === 'dark' ? 'bg-[#0d1117]' : 'bg-white shadow-sm'} ${c.m ? 'border-[#86e8f8]/40 md:-translate-y-12 shadow-2xl' : (theme === 'dark' ? 'border-white/5' : 'border-slate-300/70')} p-10 md:p-12 text-center space-y-6 md:space-y-8 flex flex-col items-center justify-center`}>
+	                  <div className="w-20 h-20 md:w-24 md:h-24 bg-[#86e8f8]/5 rounded-full flex items-center justify-center text-[#86e8f8]">{c.i}</div>
+	                  <h3 className={`font-black uppercase text-xl md:text-2xl tracking-tighter ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{c.t}</h3>
+	                  <p className={`text-xs md:text-sm leading-relaxed ${theme === 'dark' ? 'text-slate-500' : 'text-slate-700'}`}>{c.d}</p>
+	                </div>
+	              ))}
+	            </section>
 
             {/* GRID FEATURES */}
-            <section className="py-24 md:py-40 px-6 max-w-7xl mx-auto">
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-px bg-white/10 border border-white/10 rounded-[2.5rem] md:rounded-[4rem] overflow-hidden">
-                {[
+	            <section className="py-24 md:py-40 px-6 max-w-7xl mx-auto">
+	              <div className={`grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-px border rounded-[2.5rem] md:rounded-[4rem] overflow-hidden ${theme === 'dark' ? 'bg-white/10 border-white/10' : 'bg-slate-300/50 border-slate-300/70'}`}>
+	                {[
                   { i: <EyeOff/>, t: "Privacy First", d: "No link between identity and choice." },
                   { i: <Lock/>, t: "Immutable", d: "Cannot be altered by any entity." },
                   { i: <Zap/>, t: "Low Gas", d: "Optimized for minimal costs." },
                   { i: <Database/>, t: "Audit Ready", d: "Full history available for audit." },
                   { i: <ShieldCheck/>, t: "Sybil Guard", d: "Built-in protection against fake votes." },
                   { i: <Share2/>, t: "Multi-Chain", d: "Deploy across any EVM network." }
-                ].map((f, i) => (
-                  <div key={i} className="bg-[#05070a] p-10 md:p-16 hover:bg-white/[0.02]">
-                    <div className="text-[#86e8f8] mb-6 md:mb-8">{f.i}</div>
-                    <h4 className="text-white font-black text-[10px] md:text-xs uppercase mb-4 tracking-widest">{f.t}</h4>
-                    <p className="text-slate-500 text-[10px] md:text-[11px] leading-relaxed font-medium">{f.d}</p>
-                  </div>
-                ))}
-              </div>
+	                ].map((f, i) => (
+	                  <div key={i} className={`p-10 md:p-16 ${theme === 'dark' ? 'bg-[#05070a] hover:bg-white/[0.02]' : 'bg-white hover:bg-slate-50'}`}>
+	                    <div className="text-[#86e8f8] mb-6 md:mb-8">{f.i}</div>
+	                    <h4 className={`font-black text-[10px] md:text-xs uppercase mb-4 tracking-widest ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{f.t}</h4>
+	                    <p className={`text-[10px] md:text-[11px] leading-relaxed font-medium ${theme === 'dark' ? 'text-slate-500' : 'text-slate-700'}`}>{f.d}</p>
+	                  </div>
+	                ))}
+	              </div>
             </section>
 
             {/* MEET THE TEAM */}
-            <section id="team" className="py-24 px-6 max-w-7xl mx-auto border-t border-white/5">
-              <h2 className={`text-3xl md:text-5xl font-black uppercase mb-16 text-center ${theme === 'dark' ? 'text-white' : 'text-black'}`}>The Architects</h2>
-              <div className="grid md:grid-cols-3 gap-8">
-                {team.map(member => (
-                  <div key={member.name} className={`p-10 rounded-[3.5rem] border text-center transition-all hover:-translate-y-2 ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5 shadow-xl'}`}>
-                    <img src={member.img} alt={member.name} className="w-45 h-45 rounded-full mb-6 mx-auto border-4 border-[#86e8f8] p-1" />
-                    <h3 className="font-black uppercase text-xl mb-1">{member.name}</h3>
-                    <p className="text-[10px] font-black uppercase text-[#86e8f8] tracking-[0.2em]">{member.role}</p>
-                  </div>
-                ))}
+            <section id="team" className={`py-24 px-6 max-w-7xl mx-auto border-t ${theme === 'dark' ? 'border-white/5' : 'border-slate-300/70'}`}>
+              <div className="max-w-4xl mx-auto mb-10 md:mb-12">
+                <button
+                  type="button"
+                  onClick={() => setIsTeamOpen((prev) => !prev)}
+                  className={`w-full px-6 md:px-8 py-5 rounded-[1.5rem] border flex items-center justify-between transition-all ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white hover:border-[#86e8f8]/40' : 'bg-white border-slate-300/70 text-slate-900 hover:border-[#0e7490]/40'}`}
+                >
+                  <span className="text-2xl md:text-4xl font-black uppercase tracking-tight">The Architects</span>
+                  <ChevronDown
+                    size={24}
+                    className={`transition-transform duration-300 ${isTeamOpen ? 'rotate-180' : ''} ${theme === 'dark' ? 'text-[#86e8f8]' : 'text-[#0e7490]'}`}
+                  />
+                </button>
               </div>
+	              {isTeamOpen && (
+	                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 md:gap-8 animate-in fade-in slide-in-from-top-3">
+	                  {team.map(member => (
+	                    <div key={member.name} className={`p-4 sm:p-5 md:p-7 rounded-[1.5rem] md:rounded-[2rem] border text-center transition-all hover:-translate-y-2 h-full flex flex-col items-center ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-slate-300/70 shadow-sm'}`}>
+	                      <img src={member.img} alt={member.name} className="w-24 h-24 sm:w-28 sm:h-28 md:w-40 md:h-40 rounded-full mb-4 md:mb-5 mx-auto border-2 sm:border-3 md:border-4 border-[#86e8f8] p-0.5 md:p-1 object-cover object-center" />
+	                      <h3 className={`font-black uppercase text-xs sm:text-sm md:text-base leading-tight min-h-[2.2rem] md:min-h-[2.75rem] flex items-center justify-center ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{member.name}</h3>
+	                      <p className="text-[8px] sm:text-[9px] md:text-[10px] font-black uppercase text-[#86e8f8] tracking-[0.16em] md:tracking-[0.18em] mt-1">{member.role}</p>
+	                    </div>
+	                  ))}
+	                </div>
+	              )}
             </section>
 
-            {/* TESTIMONIALS */}
-            <section className="py-24 md:py-40 bg-black px-6 text-center border-y border-white/5">
-                <div className="max-w-4xl mx-auto space-y-10 md:space-y-12">
-                  <p className="text-lg md:text-4xl font-bold text-white italic">"{testimonials[activeTestimonial].quote}"</p>
-                  <div className="flex justify-center gap-3">
-                    {[0,1,2].map(i => <button key={i} onClick={()=>setActiveTestimonial(i)} className={`h-1 md:h-1.5 transition-all rounded-full ${activeTestimonial === i ? 'w-10 md:w-12 bg-[#86e8f8]' : 'w-2 md:w-3 bg-white/10'}`} />)}
-                  </div>
-                </div>
-            </section>
+	            {/* TESTIMONIALS */}
+	            <section className={`py-24 md:py-40 px-6 text-center border-y ${theme === 'dark' ? 'bg-black border-white/5' : 'bg-slate-50 border-slate-300/70'}`}>
+	                <div className="max-w-4xl mx-auto space-y-10 md:space-y-12">
+	                  <p className={`text-lg md:text-4xl font-bold italic ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>"{testimonials[activeTestimonial].quote}"</p>
+	                  <div className="flex justify-center gap-3">
+	                    {[0,1,2].map(i => <button key={i} onClick={()=>setActiveTestimonial(i)} className={`h-1 md:h-1.5 transition-all rounded-full ${activeTestimonial === i ? 'w-10 md:w-12 bg-[#86e8f8]' : (theme === 'dark' ? 'w-2 md:w-3 bg-white/10' : 'w-2 md:w-3 bg-slate-300')}`} />)}
+	                  </div>
+	                </div>
+	            </section>
 
-            {/* FAQ SECTION */}
-            <section id="faq" className="py-24 px-6 max-w-3xl mx-auto border-t border-white/5">
-              <h2 className={`text-3xl md:text-5xl font-black uppercase mb-16 text-center ${theme === 'dark' ? 'text-white' : 'text-black'}`}>General FAQ</h2>
-              <div className="space-y-4">
-                {faqs.map((faq, i) => (
-                  <div key={i} className={`rounded-[2rem] border overflow-hidden transition-all ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5'}`}>
-                    <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className="w-full p-8 flex justify-between items-center text-left font-black uppercase text-[11px] tracking-widest">
-                      {faq.q} <ChevronDown className={`transition-transform duration-300 ${openFaq === i ? 'rotate-180' : ''}`} size={16} />
-                    </button>
-                    {openFaq === i && <div className="p-8 pt-0 text-sm opacity-60 leading-relaxed border-t border-white/5 animate-in slide-in-from-top-2">{faq.a}</div>}
-                  </div>
-                ))}
-              </div>
-            </section>
+	            {/* FAQ NAV SECTION */}
+	            <section id="faq" className={`py-24 px-6 max-w-3xl mx-auto border-t ${theme === 'dark' ? 'border-white/5' : 'border-slate-300/70'}`}>
+	              <div className="text-center space-y-8">
+	                <h2 className={`text-3xl md:text-5xl font-black uppercase ${theme === 'dark' ? 'text-white' : 'text-black'}`}>General FAQ</h2>
+	                <button
+	                  onClick={() => setView('faq-page')}
+	                  className={`inline-flex items-center gap-3 px-8 md:px-10 py-4 md:py-5 rounded-2xl border font-black uppercase text-[10px] md:text-xs tracking-[0.2em] transition-transform hover:scale-[1.02] ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white' : 'bg-white border-slate-300/70 text-slate-900'}`}
+	                >
+	                  General FAQ
+	                  <ChevronRight size={16} className={theme === 'dark' ? 'text-[#86e8f8]' : 'text-[#0e7490]'} />
+	                </button>
+	              </div>
+	            </section>
 
-            {/* CTA SECTION */}
-            <section className="py-20 md:py-32 px-6 max-w-7xl mx-auto">
-                <div className="bg-[#0d1117] rounded-[2.5rem] md:rounded-[4rem] p-10 md:p-24 border border-[#86e8f8]/20 flex flex-col items-center text-center">
-                    <h2 className="text-3xl md:text-7xl font-black text-white uppercase mb-8 md:mb-10 leading-tight md:leading-none">Ready to Vote <br/><span className="text-[#86e8f8]">Without Borders?</span></h2>
-                    <button onClick={() => setShowWalletModal(true)} className="w-full sm:w-auto bg-[#86e8f8] text-black px-10 md:px-14 py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest">Get Started</button>
-                </div>
-            </section>
+	            {/* CTA SECTION */}
+	            <section className="py-20 md:py-32 px-6 max-w-7xl mx-auto">
+	                <div className={`rounded-[2.5rem] md:rounded-[4rem] p-10 md:p-24 border border-[#86e8f8]/20 flex flex-col items-center text-center ${theme === 'dark' ? 'bg-[#0d1117]' : 'bg-white shadow-sm'}`}>
+	                    <h2 className={`text-3xl md:text-7xl font-black uppercase mb-8 md:mb-10 leading-tight md:leading-none ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Ready to Vote <br/><span className="text-[#86e8f8]">Without Borders?</span></h2>
+	                    <button onClick={() => setShowWalletModal(true)} className="w-full sm:w-auto bg-[#86e8f8] text-black px-10 md:px-14 py-5 md:py-6 rounded-2xl font-black uppercase text-[10px] md:text-xs tracking-widest">Get Started</button>
+	                </div>
+	            </section>
             </div>
           </div>
-        )}
-        
+	        )}
 
-        {view === 'dashboard' && (
+	        {view === 'faq-page' && (
+	          <div className="vv-page-enter p-6 md:p-16 max-w-5xl mx-auto w-full animate-in fade-in">
+	            <div className="max-w-3xl mx-auto space-y-8 md:space-y-10">
+	              <div className="flex justify-between items-center">
+	                <button onClick={() => setView('landing')} className={`flex items-center gap-2 font-black uppercase text-[10px] ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>
+	                  <ChevronLeft size={16}/> Back
+	                </button>
+	              </div>
+	              <div className="text-center space-y-4">
+	                <h4 className={`font-black uppercase text-xs tracking-[0.22em] ${theme === 'dark' ? 'text-[#86e8f8]' : 'text-[#0e7490]'}`}>General FAQ</h4>
+	                <h2 className={`text-3xl md:text-5xl font-black uppercase ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>General FAQ</h2>
+	              </div>
+	              <div className="space-y-4">
+	                {faqs.map((faq, i) => (
+	                  <div key={i} className={`rounded-[2rem] border overflow-hidden transition-all ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-slate-300/70 shadow-sm'}`}>
+	                    <button onClick={() => setOpenFaq(openFaq === i ? null : i)} className={`w-full p-7 md:p-8 flex justify-between items-center text-left font-black uppercase text-[11px] tracking-widest ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>
+	                      {faq.q} <ChevronDown className={`transition-transform duration-300 ${openFaq === i ? 'rotate-180' : ''}`} size={16} />
+	                    </button>
+	                    {openFaq === i && (
+	                      <div className={`p-7 md:p-8 pt-0 text-sm leading-relaxed border-t animate-in slide-in-from-top-2 ${theme === 'dark' ? 'text-slate-300 border-white/5' : 'text-slate-700 border-slate-300/70'}`}>
+	                        {faq.a}
+	                      </div>
+	                    )}
+	                  </div>
+	                ))}
+	              </div>
+	            </div>
+	          </div>
+	        )}
+	        
+
+	        {view === 'dashboard' && (
           <div className="vv-page-enter p-4 md:p-16 max-w-7xl mx-auto w-full animate-in fade-in">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mb-10 md:mb-14">
-              <div className="vv-media-card lg:col-span-2 overflow-hidden rounded-[2.2rem] border border-white/10 bg-black/45">
-                <video
-                  className="vv-media-fill min-h-[14rem] md:min-h-[20rem]"
-                  src={WEB_MEDIA_VIDEOS[1].src}
-                  poster={WEB_MEDIA_VIDEOS[1].poster}
-                  autoPlay
-                  loop
-                  muted
-                  playsInline
-                  preload="metadata"
-                />
-              </div>
-              <div className="vv-media-card overflow-hidden rounded-[2.2rem] border border-white/10 bg-black/45">
-                <img src={WEB_MEDIA_IMAGES[0]} alt="" className="vv-media-fill min-h-[14rem] md:min-h-[20rem]" loading="lazy" />
-              </div>
-            </div>
             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6 md:gap-8 mb-12 md:mb-20">
-              <div className="flex bg-[#0d1117] p-1 md:p-1.5 rounded-[1.5rem] md:rounded-[2rem] border border-white/10 w-full lg:w-auto overflow-x-auto no-scrollbar">
+              <div className={`flex p-1 md:p-1.5 rounded-[1.5rem] md:rounded-[2rem] border w-full lg:w-auto overflow-x-auto no-scrollbar ${theme === 'dark' ? 'bg-[#0d1117] border-white/10' : 'bg-white border-slate-300/70'}`}>
                 {['All', 'Live', 'Passed', 'Pending', 'Rejected'].map(f => (
-                  <button key={f} onClick={()=>setActiveFilter(f)} className={`px-4 md:px-8 py-2.5 md:py-3 rounded-[1.2rem] md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${activeFilter === f ? 'bg-[#86e8f8] text-black' : 'text-slate-200'}`}>{f}</button>
+                  <button key={f} onClick={()=>setActiveFilter(f)} className={`px-4 md:px-8 py-2.5 md:py-3 rounded-[1.2rem] md:rounded-[1.5rem] text-[9px] md:text-[10px] font-black uppercase tracking-widest whitespace-nowrap ${activeFilter === f ? 'bg-[#86e8f8] text-black' : (theme === 'dark' ? 'text-slate-200' : 'text-slate-700')}`}>{f}</button>
                 ))}
               </div>
               <div className="relative w-full lg:w-96">
-                <Search className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-600" size={18} />
-                <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} type="text" placeholder="Search proposals..." className="w-full bg-[#0d1117] border border-white/10 rounded-2xl py-4 md:py-5 pl-14 md:pl-16 pr-8 text-xs md:text-sm text-white outline-none focus:border-[#86e8f8]/50" />
+                <Search className={`absolute left-6 top-1/2 -translate-y-1/2 ${theme === 'dark' ? 'text-slate-600' : 'text-slate-500'}`} size={18} />
+                <input value={searchQuery} onChange={e=>setSearchQuery(e.target.value)} type="text" placeholder="Search proposals..." className={`w-full border rounded-2xl py-4 md:py-5 pl-14 md:pl-16 pr-8 text-xs md:text-sm outline-none focus:border-[#86e8f8]/50 ${theme === 'dark' ? 'bg-[#0d1117] border-white/10 text-white' : 'bg-white border-slate-300/70 text-slate-900'}`} />
               </div>
             </div>
 
             {filteredProposals.length === 0 ? (
-              <div className="bg-[#0d1117] border border-white/10 rounded-[2rem] md:rounded-[3.5rem] p-8 md:p-12 text-center space-y-4">
-                <p className="text-[10px] md:text-xs font-black uppercase tracking-[0.2em] text-slate-100">No On-Chain Proposals Yet</p>
-                <p className="text-xs md:text-sm text-slate-200 max-w-xl mx-auto">Admin must publish at least one proposal on-chain before users can generate proof and vote.</p>
+              <div className={`border rounded-[2rem] md:rounded-[3.5rem] p-8 md:p-12 text-center space-y-4 ${theme === 'dark' ? 'bg-[#0d1117] border-white/10' : 'bg-white border-slate-300/70 shadow-sm'}`}>
+                <p className={`text-[10px] md:text-xs font-black uppercase tracking-[0.2em] ${theme === 'dark' ? 'text-slate-100' : 'text-slate-900'}`}>No On-Chain Proposals Yet</p>
+                <p className={`text-xs md:text-sm max-w-xl mx-auto ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>Admin must publish at least one proposal on-chain before users can generate proof and vote.</p>
                 {isAdminAuthenticated && (
                   <button onClick={() => setView('admin-create')} className="bg-amber-500 text-black px-6 py-3 rounded-xl font-black uppercase text-[10px] tracking-[0.2em]">
                     Create Proposal
@@ -1808,15 +1870,15 @@ export default function VoteVault() {
                 {filteredProposals.map(p => {
                   const { forP } = getPercentages(p.forVotes, p.againstVotes);
                   return (
-                    <div key={p.id} onClick={() => { setSelectedProposal(p); setView('proposal-detail'); }} className="vv-hover-lift bg-[#0d1117]/95 backdrop-blur-sm p-8 md:p-10 rounded-[2rem] md:rounded-[3.5rem] border border-white/5 hover:border-[#86e8f8]/30 cursor-pointer flex flex-col h-full">
+                    <div key={p.id} onClick={() => { setSelectedProposal(p); setView('proposal-detail'); }} className={`vv-hover-lift backdrop-blur-sm p-8 md:p-10 rounded-[2rem] md:rounded-[3.5rem] border hover:border-[#86e8f8]/30 cursor-pointer flex flex-col h-full ${theme === 'dark' ? 'bg-[#0d1117]/95 border-white/5' : 'bg-white border-slate-300/70 shadow-sm'}`}>
                       <div className="flex justify-between items-center mb-8">
                         <span className={`px-3 py-1 border rounded-lg text-[8px] md:text-[9px] font-black uppercase tracking-widest ${getTagStyle(p.status)}`}>{p.status}</span>
-                        <span className="text-[8px] md:text-[9px] font-black uppercase text-slate-600 tracking-widest">{p.tag}</span>
+                        <span className={`text-[8px] md:text-[9px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-slate-600' : 'text-slate-700'}`}>{p.tag}</span>
                       </div>
-                      <h3 className="text-xl md:text-2xl font-black text-white mb-6 uppercase leading-tight line-clamp-2">{p.title}</h3>
+                      <h3 className={`text-xl md:text-2xl font-black mb-6 uppercase leading-tight line-clamp-2 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{p.title}</h3>
                       
                       <div className="space-y-3 mb-8">
-                        <div className="flex justify-between text-[8px] md:text-[10px] font-black uppercase text-slate-200">
+                        <div className={`flex justify-between text-[8px] md:text-[10px] font-black uppercase ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>
                           <span className="text-green-500">For: {Math.round(forP)}%</span>
                           <span className="text-red-500">Against: {Math.round(100 - forP)}%</span>
                         </div>
@@ -1824,7 +1886,7 @@ export default function VoteVault() {
                           <div style={{ width: `${forP}%` }} className="h-full bg-green-500" />
                         </div>
                       </div>
-                      <div className="mt-auto pt-6 border-t border-white/5 text-[9px] md:text-[10px] font-black uppercase text-slate-200 flex justify-between items-center">
+                      <div className={`mt-auto pt-6 border-t text-[9px] md:text-[10px] font-black uppercase flex justify-between items-center ${theme === 'dark' ? 'border-white/5 text-slate-200' : 'border-slate-300/70 text-slate-700'}`}>
                         View Details <ChevronRight size={16}/>
                       </div>
                     </div>
@@ -1837,23 +1899,6 @@ export default function VoteVault() {
 
         {view === 'admin-create' && (
           <div className="vv-page-enter p-6 md:p-16 max-w-3xl mx-auto w-full animate-in slide-in-from-bottom-8">
-             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-10">
-               <div className="vv-media-card overflow-hidden rounded-[2rem] border border-white/10 bg-black/45">
-                 <video
-                   className="vv-media-fill min-h-[12rem] md:min-h-[15rem]"
-                   src={WEB_MEDIA_VIDEOS[0].src}
-                   poster={WEB_MEDIA_VIDEOS[0].poster}
-                   autoPlay
-                   loop
-                   muted
-                   playsInline
-                   preload="metadata"
-                 />
-               </div>
-               <div className="vv-media-card overflow-hidden rounded-[2rem] border border-white/10 bg-black/45">
-                 <img src={WEB_MEDIA_IMAGES[3]} alt="" className="vv-media-fill min-h-[12rem] md:min-h-[15rem]" loading="lazy" />
-               </div>
-             </div>
              <button onClick={() => setView('dashboard')} className="flex items-center gap-2 text-slate-200 font-black text-[10px] uppercase mb-10"><ChevronLeft size={18}/> Cancel</button>
              <h2 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter mb-10">New Proposal</h2>
              
@@ -1909,49 +1954,49 @@ export default function VoteVault() {
                {/* LEFT COLUMN: FULL DESCRIPTION & DISCUSSION */}
                <div className="lg:col-span-2 space-y-8">
                   <div className="space-y-4">
-                     <div className="flex items-center gap-3">
-                        <span className={`px-3 py-1 border rounded-lg text-[8px] font-black uppercase tracking-widest ${selectedProposal.status === 'Live' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-slate-500/10 text-slate-200 border-slate-500/20'}`}>
-                          {selectedProposal.status}
-                        </span>
-                        <span className="text-[10px] font-bold opacity-40 uppercase">Ends {selectedProposal.deadline}</span>
-                     </div>
-                     <h2 className={`text-3xl md:text-4xl font-black uppercase leading-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{selectedProposal.title}</h2>
-                     <p className="text-sm opacity-50 leading-relaxed max-w-2xl">Proposal to adjust protocol parameters to ensure long-term network stability and security.</p>
-                  </div>
+	                     <div className="flex items-center gap-3">
+	                        <span className={`px-3 py-1 border rounded-lg text-[8px] font-black uppercase tracking-widest ${selectedProposal.status === 'Live' ? 'bg-green-500/10 text-green-500 border-green-500/20' : 'bg-slate-500/10 text-slate-200 border-slate-500/20'}`}>
+	                          {selectedProposal.status}
+	                        </span>
+	                        <span className={`text-[10px] font-bold uppercase ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>Ends {selectedProposal.deadline}</span>
+	                     </div>
+	                     <h2 className={`text-3xl md:text-4xl font-black uppercase leading-tight ${theme === 'dark' ? 'text-white' : 'text-black'}`}>{selectedProposal.title}</h2>
+	                     <p className={`text-sm leading-relaxed max-w-2xl ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>Proposal to adjust protocol parameters to ensure long-term network stability and security.</p>
+	                  </div>
 
-                  <div className={`p-10 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5 shadow-sm'}`}>
-                    <h3 className="font-black uppercase text-xl mb-8">Full Description</h3>
-                    <div className="space-y-8">
-                      <div>
-                        <h4 className="font-black uppercase text-[11px] mb-4 text-[#86e8f8]">Summary</h4>
-                        <p className="text-sm opacity-70 leading-relaxed">{selectedProposal.summary}</p>
-                      </div>
-                      <div>
-                        <h4 className="font-black uppercase text-[11px] mb-4 text-[#86e8f8]">Motivation</h4>
-                        <p className="text-sm opacity-70 leading-relaxed">{selectedProposal.motivation || "This proposal addresses the current needs for protocol scalability and user incentives."}</p>
-                      </div>
-                      <div>
-                        <h4 className="font-black uppercase text-[11px] mb-4 text-[#86e8f8]">Specification</h4>
-                        <ul className="text-sm opacity-70 space-y-2 list-disc pl-5">
-                          <li>Category: {selectedProposal.tag}</li>
-                          <li>Current Status: {selectedProposal.status}</li>
-                          <li>Quorum Required: {selectedProposal.quorum}%</li>
-                          <li>Verification: Zero-Knowledge Proof (STARK)</li>
-                        </ul>
-                      </div>
+	                  <div className={`p-10 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5 shadow-sm'}`}>
+	                    <h3 className={`font-black uppercase text-xl mb-8 ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Full Description</h3>
+	                    <div className="space-y-8">
+	                      <div>
+	                        <h4 className="font-black uppercase text-[11px] mb-4 text-[#86e8f8]">Summary</h4>
+	                        <p className={`text-sm leading-relaxed ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{selectedProposal.summary}</p>
+	                      </div>
+	                      <div>
+	                        <h4 className="font-black uppercase text-[11px] mb-4 text-[#86e8f8]">Motivation</h4>
+	                        <p className={`text-sm leading-relaxed ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>{selectedProposal.motivation || "This proposal addresses the current needs for protocol scalability and user incentives."}</p>
+	                      </div>
+	                      <div>
+	                        <h4 className="font-black uppercase text-[11px] mb-4 text-[#86e8f8]">Specification</h4>
+	                        <ul className={`text-sm space-y-2 list-disc pl-5 ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+	                          <li>Category: {selectedProposal.tag}</li>
+	                          <li>Current Status: {selectedProposal.status}</li>
+	                          <li>Quorum Required: {selectedProposal.quorum}%</li>
+	                          <li>Verification: Zero-Knowledge Proof (STARK)</li>
+	                        </ul>
+	                      </div>
                     </div>
                   </div>
 
-                  {/* DISCUSSION SECTION (FUNCTIONAL) */}
-                  <div className={`p-10 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5'}`}>
-                    <h3 className="font-black uppercase text-[11px] mb-6 opacity-40">Discussion</h3>
-                    <div className="space-y-6">
-                      <textarea 
-                        value={adminAuthInput} 
-                        onChange={(e) => setAdminAuthInput(e.target.value)} 
-                        placeholder="Leave a comment..." 
-                        className="w-full bg-black/20 border border-white/10 rounded-2xl p-6 text-sm outline-none h-32 text-white resize-none" 
-                      />
+	                  {/* DISCUSSION SECTION (FUNCTIONAL) */}
+	                  <div className={`p-10 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/5' : 'bg-white border-black/5'}`}>
+	                    <h3 className={`font-black uppercase text-[11px] mb-6 ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>Discussion</h3>
+	                    <div className="space-y-6">
+	                      <textarea 
+	                        value={adminAuthInput} 
+	                        onChange={(e) => setAdminAuthInput(e.target.value)} 
+	                        placeholder="Leave a comment..." 
+	                        className={`w-full border rounded-2xl p-6 text-sm outline-none h-32 resize-none ${theme === 'dark' ? 'bg-black/20 border-white/10 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`} 
+	                      />
                       <button 
                         onClick={() => {
                           if(!adminAuthInput.trim()) return;
@@ -1966,38 +2011,38 @@ export default function VoteVault() {
 
                       <div className="pt-8 space-y-6">
                         {/* Newest comment placeholder logic */}
-                        <div className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-3 animate-in fade-in slide-in-from-top-4">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-mono text-[#86e8f8]">0x7a3f...6f7a</span>
-                            <span className="text-[9px] opacity-30">Just now</span>
-                          </div>
-                          <p className="text-xs opacity-60">I've reviewed the ZK-proof logic for this proposal. It looks solid and significantly improves privacy.</p>
-                        </div>
-                        {/* Static existing comments */}
-                        <div className="p-6 rounded-2xl bg-white/5 border border-white/5 space-y-3">
-                          <div className="flex justify-between items-center">
-                            <span className="text-[10px] font-mono text-[#86e8f8]">0x4b2d...1e8c</span>
-                            <span className="text-[9px] opacity-30">2 hours ago</span>
-                          </div>
-                          <p className="text-xs opacity-60">Strong support for this. Validator attrition is a real concern and this adjustment is necessary.</p>
-                        </div>
-                      </div>
-                    </div>
+	                        <div className={`p-6 rounded-2xl border space-y-3 animate-in fade-in slide-in-from-top-4 ${theme === 'dark' ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-300/70'}`}>
+	                          <div className="flex justify-between items-center">
+	                            <span className="text-[10px] font-mono text-[#86e8f8]">0x7a3f...6f7a</span>
+	                            <span className={`text-[9px] ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>Just now</span>
+	                          </div>
+	                          <p className={`text-xs ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>I've reviewed the ZK-proof logic for this proposal. It looks solid and significantly improves privacy.</p>
+	                        </div>
+	                        {/* Static existing comments */}
+	                        <div className={`p-6 rounded-2xl border space-y-3 ${theme === 'dark' ? 'bg-white/5 border-white/5' : 'bg-slate-50 border-slate-300/70'}`}>
+	                          <div className="flex justify-between items-center">
+	                            <span className="text-[10px] font-mono text-[#86e8f8]">0x4b2d...1e8c</span>
+	                            <span className={`text-[9px] ${theme === 'dark' ? 'text-slate-400' : 'text-slate-600'}`}>2 hours ago</span>
+	                          </div>
+	                          <p className={`text-xs ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Strong support for this. Validator attrition is a real concern and this adjustment is necessary.</p>
+	                        </div>
+	                      </div>
+	                    </div>
                   </div>
                </div>
 
                {/* RIGHT COLUMN: VOTING & STATS */}
                <div className="space-y-6">
-                  {/* CAST VOTE CARD (RESTRICTED TO LIVE) */}
-                  <div className={`p-8 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/10' : 'bg-white border-black/10 shadow-xl'}`}>
-                    <h4 className="font-black uppercase text-[10px] mb-8 opacity-40 text-center">Cast Your Vote</h4>
-                    
-                    {selectedProposal.status !== 'Live' ? (
-                      <div className="py-6 border-2 border-white/5 rounded-2xl text-slate-200 font-black uppercase text-[10px] flex flex-col items-center gap-2 bg-white/5 text-center px-4">
-                        <Ban size={24} className="opacity-30"/> Voting is {selectedProposal.status}
-                      </div>
-                    ) : !selectedProposal.hasVoted ? (
-                      <div className="space-y-3">
+	                  {/* CAST VOTE CARD (RESTRICTED TO LIVE) */}
+	                  <div className={`p-8 rounded-[2.5rem] border ${theme === 'dark' ? 'bg-[#0d1117] border-white/10' : 'bg-white border-black/10 shadow-xl'}`}>
+	                    <h4 className={`font-black uppercase text-[10px] mb-8 text-center ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>Cast Your Vote</h4>
+	                    
+	                    {selectedProposal.status !== 'Live' ? (
+	                      <div className={`py-6 border-2 rounded-2xl font-black uppercase text-[10px] flex flex-col items-center gap-2 text-center px-4 ${theme === 'dark' ? 'border-white/5 text-slate-200 bg-white/5' : 'border-slate-300/70 text-slate-800 bg-slate-50'}`}>
+	                        <Ban size={24} className="opacity-30"/> Voting is {selectedProposal.status}
+	                      </div>
+	                    ) : !selectedProposal.hasVoted ? (
+	                      <div className="space-y-3">
                         <div className="grid grid-cols-2 gap-2">
                           <button
                             type="button"
@@ -2024,31 +2069,40 @@ export default function VoteVault() {
                             {isGeneratingDaoProof ? 'Generating...' : 'Generate Proof Against'}
                           </button>
                         </div>
-                        <p className="text-[9px] uppercase tracking-[0.15em] text-slate-200">
-                          Auto-fills from connected wallet. You can still edit the fields manually.
-                        </p>
-                        <input
-                          type="number"
-                          min="1"
-                          value={daoVoteWeight}
-                          onChange={(e) => setDaoVoteWeight(e.target.value)}
-                          placeholder="Private vote weight"
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white outline-none text-xs"
-                        />
-                        <input
-                          type="text"
-                          value={daoVoteNullifier}
-                          onChange={(e) => setDaoVoteNullifier(e.target.value)}
-                          placeholder="Nullifier (0x... or decimal)"
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white outline-none text-xs font-mono"
-                        />
-                        <textarea
-                          value={daoVoteProof}
-                          onChange={(e) => setDaoVoteProof(e.target.value)}
-                          placeholder="Proof felts (comma separated)"
-                          rows={3}
-                          className="w-full bg-black/40 border border-white/10 rounded-xl p-3 text-white outline-none text-xs font-mono resize-none"
-                        />
+	                        <p className={`text-[9px] uppercase tracking-[0.15em] ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>
+	                          Auto-fills from connected wallet. You can still edit the fields manually.
+	                        </p>
+	                        <div className="space-y-2">
+	                          <label className={`block text-[10px] font-black uppercase tracking-[0.14em] ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>Private Vote Weight</label>
+	                          <input
+	                            type="number"
+	                            min="1"
+	                            value={daoVoteWeight}
+	                            onChange={(e) => setDaoVoteWeight(e.target.value)}
+	                            placeholder="Private vote weight"
+	                            className={`w-full border rounded-xl p-3 outline-none text-xs ${theme === 'dark' ? 'bg-black/40 border-white/10 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+	                          />
+	                        </div>
+	                        <div className="space-y-2">
+	                          <label className={`block text-[10px] font-black uppercase tracking-[0.14em] ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>Nullifier</label>
+	                          <input
+	                            type="text"
+	                            value={daoVoteNullifier}
+	                            onChange={(e) => setDaoVoteNullifier(e.target.value)}
+	                            placeholder="Nullifier (0x... or decimal)"
+	                            className={`w-full border rounded-xl p-3 outline-none text-xs font-mono ${theme === 'dark' ? 'bg-black/40 border-white/10 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+	                          />
+	                        </div>
+	                        <div className="space-y-2">
+	                          <label className={`block text-[10px] font-black uppercase tracking-[0.14em] ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>ZK Proof</label>
+	                          <textarea
+	                            value={daoVoteProof}
+	                            onChange={(e) => setDaoVoteProof(e.target.value)}
+	                            placeholder="Proof felts (comma separated)"
+	                            rows={3}
+	                            className={`w-full border rounded-xl p-3 outline-none text-xs font-mono resize-none ${theme === 'dark' ? 'bg-black/40 border-white/10 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+	                          />
+	                        </div>
                         <button disabled={isSubmittingTx || !isConnected || !canSignTransactions} onClick={() => handleVote('for')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] transition-transform ${isSubmittingTx || !isConnected || !canSignTransactions ? 'bg-white/10 text-slate-500 cursor-not-allowed' : 'bg-[#86e8f8] text-black hover:scale-[1.02]'}`}>{isSubmittingTx ? 'Submitting...' : 'Vote For'}</button>
                         <button disabled={isSubmittingTx || !isConnected || !canSignTransactions} onClick={() => handleVote('against')} className={`w-full py-4 rounded-xl font-black uppercase text-[10px] border ${isSubmittingTx || !isConnected || !canSignTransactions ? 'bg-white/10 text-slate-500 cursor-not-allowed border-white/10' : 'bg-red-500/10 text-red-500 border-red-500/20'}`}>Vote Against</button>
                       </div>
@@ -2115,135 +2169,135 @@ export default function VoteVault() {
           </div>
         )}
       {/* FOOTER */}
-      <footer className="bg-[#080a0f]/95 backdrop-blur-md pt-20 md:pt-32 pb-12 md:pb-16 px-6 md:px-12 border-t border-white/5">
-          <div className="max-w-7xl mx-auto">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-12 md:gap-16 mb-16 md:mb-24">
-              <div className="sm:col-span-2 lg:col-span-2 space-y-6 md:space-y-8">
-                <div className="text-white font-black uppercase text-2xl md:text-3xl tracking-tighter">VoteVault</div>
-                <p className="text-slate-200 text-xs md:text-sm leading-relaxed max-w-sm">
-                  The standard for private decentralized decision making using zero-knowledge technology.
-                </p>
-                <div className="flex gap-4">
-                  {[ MessageSquare].map((Icon, i) => (
-                    <a key={i} href="#" className="w-10 h-10 md:w-12 md:h-12 bg-white/5 rounded-xl flex items-center justify-center text-slate-100">
-                      <Icon size={20} />
-                    </a>
-                  ))}
-                </div>
-              </div>
+	      <footer className={`backdrop-blur-md pt-20 md:pt-32 pb-12 md:pb-16 px-6 md:px-12 border-t ${theme === 'dark' ? 'bg-[#080a0f]/95 border-white/5' : 'bg-white/90 border-slate-300/70'}`}>
+	          <div className="max-w-7xl mx-auto">
+	            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-12 md:gap-16 mb-16 md:mb-24">
+	              <div className="sm:col-span-2 lg:col-span-2 space-y-6 md:space-y-8">
+	                <div className={`font-black uppercase text-2xl md:text-3xl tracking-tighter ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>VoteVault</div>
+	                <p className={`text-xs md:text-sm leading-relaxed max-w-sm ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>
+	                  The standard for private decentralized decision making using zero-knowledge technology.
+	                </p>
+	                <div className="flex gap-4">
+	                  {[ MessageSquare].map((Icon, i) => (
+	                    <a key={i} href="#" className={`w-10 h-10 md:w-12 md:h-12 rounded-xl flex items-center justify-center ${theme === 'dark' ? 'bg-white/5 text-slate-100' : 'bg-slate-100 text-slate-800'}`}>
+	                      <Icon size={20} />
+	                    </a>
+	                  ))}
+	                </div>
+	              </div>
 
-              <div className="space-y-6">
-                <h4 className="text-white font-black text-[10px] uppercase tracking-widest">Protocol</h4>
-                <ul className="space-y-3 text-[10px] font-bold uppercase tracking-wider text-slate-200">
-                  <li>Documentation</li><li>ZK-Proofs Lab</li><li>SDK</li><li>Security</li>
-                </ul>
-              </div>
+	              <div className="space-y-6">
+	                <h4 className={`font-black text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Protocol</h4>
+	                <ul className={`space-y-3 text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>
+	                  <li>Documentation</li><li>ZK-Proofs Lab</li><li>SDK</li><li>Security</li>
+	                </ul>
+	              </div>
 
-              <div className="space-y-6">
-                <h4 className="text-white font-black text-[10px] uppercase tracking-widest">Ecosystem</h4>
-                <ul className="space-y-3 text-[10px] font-bold uppercase tracking-wider text-slate-200">
-                  <li>Grants</li><li>Ambassadors</li><li>Partner DAOs</li>
-                </ul>
-              </div>
+	              <div className="space-y-6">
+	                <h4 className={`font-black text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Ecosystem</h4>
+	                <ul className={`space-y-3 text-[10px] font-bold uppercase tracking-wider ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>
+	                  <li>Grants</li><li>Ambassadors</li><li>Partner DAOs</li>
+	                </ul>
+	              </div>
 
-              <div className="space-y-6 sm:col-span-2 lg:col-span-1">
-                <h4 className="text-white font-black text-[10px] uppercase tracking-widest">Newsletter</h4>
-                <div className="relative">
-                  <input type="email" placeholder="Email" className="w-full bg-black/40 border border-white/10 rounded-xl py-3.5 px-5 text-xs text-white outline-none" />
-                  <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#86e8f8] text-black p-1.5 rounded-lg"><ArrowUpRight size={14} /></button>
-                </div>
-              </div>
-            </div>
+	              <div className="space-y-6 sm:col-span-2 lg:col-span-1">
+	                <h4 className={`font-black text-[10px] uppercase tracking-widest ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Newsletter</h4>
+	                <div className="relative">
+	                  <input type="email" placeholder="Email" className={`w-full border rounded-xl py-3.5 px-5 text-xs outline-none ${theme === 'dark' ? 'bg-black/40 border-white/10 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`} />
+	                  <button className="absolute right-2 top-1/2 -translate-y-1/2 bg-[#86e8f8] text-black p-1.5 rounded-lg"><ArrowUpRight size={14} /></button>
+	                </div>
+	              </div>
+	            </div>
 
-            <div className="pt-10 border-t border-white/5 flex flex-col md:flex-row justify-between items-center gap-6">
-              <div className="flex flex-wrap justify-center gap-6 text-[8px] md:text-[9px] font-black uppercase text-slate-600 tracking-widest">
-                <span>Privacy Policy</span><span>Terms</span><span>v1.0.4-Beta</span>
-              </div>
-              <div className="text-[8px] md:text-[10px] font-black uppercase text-slate-800 tracking-[0.3em] text-center md:text-right">
-                &copy; 2026 VoteVault Protocol Labs.
-              </div>
-            </div>
+	            <div className={`pt-10 border-t flex flex-col md:flex-row justify-between items-center gap-6 ${theme === 'dark' ? 'border-white/5' : 'border-slate-300/70'}`}>
+	              <div className={`flex flex-wrap justify-center gap-6 text-[8px] md:text-[9px] font-black uppercase tracking-widest ${theme === 'dark' ? 'text-slate-400' : 'text-slate-700'}`}>
+	                <span>Privacy Policy</span><span>Terms</span><span>v1.0.4-Beta</span>
+	              </div>
+	              <div className={`text-[8px] md:text-[10px] font-black uppercase tracking-[0.3em] text-center md:text-right ${theme === 'dark' ? 'text-slate-300' : 'text-slate-700'}`}>
+	                &copy; 2026 VoteVault Protocol Labs.
+	              </div>
+	            </div>
           </div>
       </footer>
       </main>
       
 
-      {showWalletModal && (
-        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
-          {/* Backdrop with heavy blur as per your code */}
-          <div className="absolute inset-0 bg-black/95 backdrop-blur-xl" onClick={() => {setShowWalletModal(false); setSelectedWallet(null); setWalletAddress('');}} />
-          
-          <div className="relative bg-[#0d1117] border border-white/10 w-full max-w-xl rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-14 animate-in zoom-in-95 duration-300">
-            
-            {!selectedWallet ? (
-              /* STAGE 1: SELECT WALLET (With Logos) */
-              <div className="animate-in fade-in slide-in-from-bottom-4">
-                <div className="vv-media-card overflow-hidden rounded-[2rem] border border-white/10 bg-black/45 mb-8">
-                  <video
-                    className="vv-media-fill min-h-[9rem] md:min-h-[11rem]"
-                    src={WEB_MEDIA_VIDEOS[0].src}
+	      {showWalletModal && (
+	        <div className="fixed inset-0 z-[500] flex items-center justify-center p-4">
+	          {/* Backdrop with heavy blur as per your code */}
+	          <div className={`absolute inset-0 backdrop-blur-xl ${theme === 'dark' ? 'bg-black/95' : 'bg-slate-950/40'}`} onClick={() => {setShowWalletModal(false); setSelectedWallet(null); setWalletAddress('');}} />
+	          
+	          <div className={`relative border w-full max-w-xl rounded-[2.5rem] md:rounded-[4rem] p-8 md:p-14 animate-in zoom-in-95 duration-300 ${theme === 'dark' ? 'bg-[#0d1117] border-white/10' : 'bg-white border-slate-300/70 shadow-2xl'}`}>
+	            
+	            {!selectedWallet ? (
+	              /* STAGE 1: SELECT WALLET (With Logos) */
+	              <div className="animate-in fade-in slide-in-from-bottom-4">
+	                <div className={`vv-media-card overflow-hidden rounded-[2rem] border mb-8 ${theme === 'dark' ? 'border-white/10 bg-black/45' : 'border-slate-300/70 bg-slate-100/70'}`}>
+	                  <video
+	                    className="vv-media-fill min-h-[9rem] md:min-h-[11rem]"
+	                    src={WEB_MEDIA_VIDEOS[0].src}
                     poster={WEB_MEDIA_VIDEOS[0].poster}
                     autoPlay
                     loop
                     muted
                     playsInline
-                    preload="metadata"
-                  />
-                </div>
-                <h3 className="text-2xl md:text-3xl font-black text-white uppercase tracking-tighter mb-10 text-center italic">Connect Identity</h3>
-                
-                <div className="grid gap-4">
-                  {CONNECT_WALLETS.map(w => (
-                    <button 
-                      key={w.name} 
-                      onClick={() => setSelectedWallet(w.name)} 
-                      className="flex items-center justify-between p-5 rounded-[2rem] border border-white/5 bg-white/5 hover:border-[#86e8f8]/50 hover:bg-[#86e8f8]/5 transition-all group"
-                    >
-                      <div className="flex items-center gap-5">
-                        <div className="w-12 h-12 bg-black/40 rounded-2xl p-2.5 flex items-center justify-center group-hover:scale-110 transition-transform">
-                          <img src={w.logo} alt={w.name} className="w-full h-full object-contain" />
-                        </div>
-                        <div className="text-left">
-                          <span className="block text-white font-black uppercase text-[11px] tracking-widest">{w.name}</span>
-                          <span className="block text-slate-200 text-[9px] uppercase font-bold mt-1">{w.desc}</span>
-                        </div>
-                      </div>
-                      <ChevronRight size={18} className="text-white opacity-20 group-hover:opacity-100 group-hover:translate-x-1 transition-all" />
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              /* STAGE 2: WALLET ADDRESS INPUT */
-              <div className="animate-in slide-in-from-right-4">
-                 <div className="vv-media-card overflow-hidden rounded-[2rem] border border-white/10 bg-black/45 mb-8">
-                   <img src={WEB_MEDIA_IMAGES[5]} alt="" className="vv-media-fill min-h-[9rem] md:min-h-[11rem]" loading="lazy" />
-                 </div>
-                 <div className="flex items-center gap-4 mb-10">
-                    <button onClick={() => {setSelectedWallet(null); setWalletAddress('');}} className="p-2 hover:bg-white/5 rounded-full text-white transition-colors">
-                      <ChevronLeft size={24}/>
-                    </button>
-                    <div>
-                      <h3 className="text-xl md:text-2xl font-black text-white uppercase tracking-tighter italic">Authorize</h3>
-                      <p className="text-[10px] font-bold text-[#86e8f8] uppercase tracking-widest">Confirm {selectedWallet} Wallet</p>
-                    </div>
-                 </div>
-                 <div className="space-y-10">
+	                    preload="metadata"
+	                  />
+	                </div>
+	                <h3 className={`text-2xl md:text-3xl font-black uppercase tracking-tighter mb-10 text-center italic ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Connect Identity</h3>
+	                
+	                <div className="grid gap-4">
+	                  {CONNECT_WALLETS.map(w => (
+	                    <button 
+	                      key={w.name} 
+	                      onClick={() => setSelectedWallet(w.name)} 
+	                      className={`flex items-center justify-between p-5 rounded-[2rem] border hover:border-[#86e8f8]/50 hover:bg-[#86e8f8]/5 transition-all group ${theme === 'dark' ? 'border-white/5 bg-white/5' : 'border-slate-300/70 bg-slate-50'}`}
+	                    >
+	                      <div className="flex items-center gap-5">
+	                        <div className={`w-12 h-12 rounded-2xl p-2.5 flex items-center justify-center group-hover:scale-110 transition-transform ${theme === 'dark' ? 'bg-black/40' : 'bg-white border border-slate-200'}`}>
+	                          <img src={w.logo} alt={w.name} className="w-full h-full object-contain" />
+	                        </div>
+	                        <div className="text-left">
+	                          <span className={`block font-black uppercase text-[11px] tracking-widest ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>{w.name}</span>
+	                          <span className={`block text-[9px] uppercase font-bold mt-1 ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>{w.desc}</span>
+	                        </div>
+	                      </div>
+	                      <ChevronRight size={18} className={`opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all ${theme === 'dark' ? 'text-white' : 'text-slate-700'}`} />
+	                    </button>
+	                  ))}
+	                </div>
+	              </div>
+	            ) : (
+	              /* STAGE 2: WALLET ADDRESS INPUT */
+	              <div className="animate-in slide-in-from-right-4">
+	                 <div className={`vv-media-card overflow-hidden rounded-[2rem] border mb-8 ${theme === 'dark' ? 'border-white/10 bg-black/45' : 'border-slate-300/70 bg-slate-100/70'}`}>
+	                   <img src={WEB_MEDIA_IMAGES[5]} alt="" className="vv-media-fill min-h-[9rem] md:min-h-[11rem]" loading="lazy" />
+	                 </div>
+	                 <div className="flex items-center gap-4 mb-10">
+	                    <button onClick={() => {setSelectedWallet(null); setWalletAddress('');}} className={`p-2 rounded-full transition-colors ${theme === 'dark' ? 'hover:bg-white/5 text-white' : 'hover:bg-slate-100 text-slate-800'}`}>
+	                      <ChevronLeft size={24}/>
+	                    </button>
+	                    <div>
+	                      <h3 className={`text-xl md:text-2xl font-black uppercase tracking-tighter italic ${theme === 'dark' ? 'text-white' : 'text-slate-900'}`}>Authorize</h3>
+	                      <p className="text-[10px] font-bold text-[#86e8f8] uppercase tracking-widest">Confirm {selectedWallet} Wallet</p>
+	                    </div>
+	                 </div>
+	                 <div className="space-y-10">
                     <input
                       type="text"
-                      autoFocus
-                      value={walletAddress}
-                      onChange={(e) => setWalletAddress(e.target.value)}
-                      placeholder="0x..."
-                      className="w-full bg-black/40 border border-white/10 rounded-2xl py-5 px-6 text-white text-sm outline-none focus:border-[#86e8f8]/50 font-mono"
-                    />
-                    <div className="text-center space-y-4">
-                      <p className="text-[10px] font-black uppercase text-slate-200 tracking-[0.3em]">Enter wallet address (optional)</p>
-                      <p className="text-[9px] font-bold text-slate-200">On mobile, Confirm Access opens your selected wallet app (Braavos/Argent) for signing.</p>
-                      {selectedWallet === 'Braavos' && (
-                        <button
-                          type="button"
-                          onClick={() => handoffToMobileWalletApp('Braavos', normalizeHexFelt(walletAddress.trim()) || undefined)}
+	                      autoFocus
+	                      value={walletAddress}
+	                      onChange={(e) => setWalletAddress(e.target.value)}
+	                      placeholder="0x..."
+	                      className={`w-full border rounded-2xl py-5 px-6 text-sm outline-none focus:border-[#86e8f8]/50 font-mono ${theme === 'dark' ? 'bg-black/40 border-white/10 text-white' : 'bg-slate-50 border-slate-300 text-slate-900'}`}
+	                    />
+	                    <div className="text-center space-y-4">
+	                      <p className={`text-[10px] font-black uppercase tracking-[0.3em] ${theme === 'dark' ? 'text-slate-200' : 'text-slate-800'}`}>Enter wallet address (optional)</p>
+	                      <p className={`text-[9px] font-bold ${theme === 'dark' ? 'text-slate-200' : 'text-slate-700'}`}>On mobile, Confirm Access opens your selected wallet app (Braavos/Argent) for signing.</p>
+	                      {selectedWallet === 'Braavos' && (
+	                        <button
+	                          type="button"
+	                          onClick={() => handoffToMobileWalletApp('Braavos', normalizeHexFelt(walletAddress.trim()) || undefined)}
                           className="w-full py-3 rounded-xl font-black uppercase text-[10px] border border-[#86e8f8]/30 text-[#86e8f8] bg-[#86e8f8]/10"
                         >
                           Braavos Mobile App Connect
