@@ -55,3 +55,6 @@ VoteVault is a Starknet voting dApp that combines:
 - Added Noir circuit for private weighted proposal votes: `circuits/private_token_weighted_vote.nr`.
 - Added offchain helpers for weighted-proof inputs in `scripts/offchain/privateVoting.js`.
 - Added wallet session persistence across page refresh in `frontend/src/app/page.tsx`.
+
+## Production launch guide
+- Full production hardening runbook: `docs/production-launch-playbook.md`

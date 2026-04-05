@@ -1,21 +1,77 @@
-name: Vercel Production Deploy
-
-env:
-  VERCEL_ORG_ID: team_1u25eLXSrJph9tJLpVn4OBsU
-  VERCEL_PROJECT_ID: prj_Pk829s3rCiLgF7nGOOqnCLtMBPIr
+name: VoteVault Release Pipeline
 
 on:
+  pull_request:
+    branches:
+      - main
   push:
     branches:
       - main
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 concurrency:
-  group: vercel-production
+  group: votevault-release
   cancel-in-progress: true
 
+env:
+  NODE_VERSION: "22"
+  VERCEL_ORG_ID: team_1u25eLXSrJph9tJLpVn4OBsU
+  VERCEL_PROJECT_ID: prj_Pk829s3rCiLgF7nGOOqnCLtMBPIr
+
 jobs:
-  deploy:
+  cairo-contracts:
+    name: Cairo Contract Tests
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Scarb
+        run: |
+          curl --proto '=https' --tlsv1.2 -sSf https://docs.swmansion.com/scarb/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+
+      - name: Install Starknet Foundry
+        run: |
+          curl -L https://raw.githubusercontent.com/foundry-rs/starknet-foundry/master/scripts/install.sh | sh
+          echo "$HOME/.starknet-foundry/bin" >> "$GITHUB_PATH"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.starknet-foundry/bin:$HOME/.local/bin:$PATH"
+          snfoundryup
+
+      - name: Verify Cairo toolchain
+        run: |
+          scarb --version
+          snforge --version
+
+      - name: Run Cairo tests
+        run: npm run test-contracts
+
+  noir-circuits:
+    name: Noir Circuit Checks
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Noir toolchain
+        run: |
+          curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+          echo "$HOME/.nargo/bin" >> "$GITHUB_PATH"
+          export PATH="$HOME/.nargo/bin:$PATH"
+          noirup
+
+      - name: Verify Noir toolchain
+        run: nargo --version
+
+      - name: Compile Noir circuits
+        run: npm run test-noir
+
+  frontend-build:
+    name: Frontend Build
     runs-on: ubuntu-latest
     defaults:
       run:
@@ -27,16 +83,48 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci --legacy-peer-deps
+
+      - name: Build frontend
+        run: npm run build
+
+  deploy-production:
+    name: Deploy Production
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs:
+      - cairo-contracts
+      - noir-circuits
+      - frontend-build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Guard required deploy secret
+        run: |
+          if [ -z "${{ secrets.VERCEL_TOKEN }}" ]; then
+            echo "Missing required GitHub secret: VERCEL_TOKEN"
+            exit 1
+          fi
 
       - name: Install Vercel CLI
         run: npm install --global vercel@latest
 
-      - name: Pull Vercel Environment Information
+      - name: Pull Vercel production settings
         run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Build Project Artifacts
+      - name: Build deployable output
         run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
 
-      - name: Deploy Project Artifacts to Vercel
+      - name: Deploy to production
         run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}

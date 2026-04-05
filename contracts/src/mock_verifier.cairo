@@ -17,9 +17,7 @@ pub mod MockVerifier {
 
     #[external(v0)]
     fn verify_proof(
-        self: @ContractState,
-        _proof: Array<felt252>,
-        _public_inputs: Array<felt252>,
+        self: @ContractState, _proof: Array<felt252>, _public_inputs: Array<felt252>,
     ) -> bool {
         self.result.read()
     }

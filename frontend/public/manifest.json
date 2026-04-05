@@ -1,0 +1,22 @@
+{
+  "id": "/",
+  "name": "VoteVault",
+  "short_name": "VoteVault",
+  "description": "Private voting and DAO governance on Starknet with zero-knowledge proofs.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "window-controls-overlay", "browser"],
+  "orientation": "portrait",
+  "background_color": "#05070a",
+  "theme_color": "#05070a",
+  "icons": [
+    {
+      "src": "/icons/votevault-glowing-v-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["finance", "productivity", "utilities"]
+}

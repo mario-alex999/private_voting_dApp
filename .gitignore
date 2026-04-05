@@ -6,3 +6,5 @@ snfoundry.toml
 .env.*
 !.env.example
 .env
+.vercel
+.env*.local

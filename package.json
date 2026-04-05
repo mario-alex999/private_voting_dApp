@@ -29,6 +29,8 @@
     "start-backend": "cd backend && npm run dev",
     "start-frontend": "cd frontend && npm run dev",
     "deploy-votevault": "node scripts/onchain/deployVoteVault.js",
+    "upgrade-private-voting": "node scripts/onchain/upgradePrivateVoting.js --class-hash ${npm_config_class_hash}",
+    "test-noir": "bash scripts/ci/check_noir_circuits.sh",
     "create-proposal": "node scripts/onchain/createProposal.js",
     "vote-proposal": "node scripts/onchain/voteProposal.js"
 

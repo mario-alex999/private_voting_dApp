@@ -1,21 +1,18 @@
 #[starknet::interface]
 pub trait IProofVerifier<TContractState> {
     fn verify_proof(
-        self: @TContractState,
-        proof: Array<felt252>,
-        public_inputs: Array<felt252>,
+        self: @TContractState, proof: Array<felt252>, public_inputs: Array<felt252>,
     ) -> bool;
 }
 
 #[starknet::contract]
 mod PrivateVoting {
-    use starknet::ContractAddress;
-    use starknet::get_block_timestamp;
-    use starknet::get_caller_address;
     use starknet::storage::Map;
-
-    use super::IProofVerifierDispatcher;
-    use super::IProofVerifierDispatcherTrait;
+    use starknet::syscalls::replace_class_syscall;
+    use starknet::{
+        ClassHash, ContractAddress, SyscallResultTrait, get_block_timestamp, get_caller_address,
+    };
+    use super::{IProofVerifierDispatcher, IProofVerifierDispatcherTrait};
 
     #[storage]
     struct Storage {
@@ -49,6 +46,8 @@ mod PrivateVoting {
         VotingClosed: VotingClosed,
         VotingPaused: VotingPaused,
         AdminUpdated: AdminUpdated,
+        VerifierUpdated: VerifierUpdated,
+        Upgraded: Upgraded,
         ProposalCreated: ProposalCreated,
         ProposalVoted: ProposalVoted,
         ProposalClosed: ProposalClosed,
@@ -89,6 +88,17 @@ mod PrivateVoting {
     }
 
     #[derive(Drop, starknet::Event)]
+    struct VerifierUpdated {
+        old_verifier: ContractAddress,
+        new_verifier: ContractAddress,
+    }
+
+    #[derive(Drop, starknet::Event)]
+    struct Upgraded {
+        new_class_hash: ClassHash,
+    }
+
+    #[derive(Drop, starknet::Event)]
     struct ProposalCreated {
         proposal_id: u64,
         title: felt252,
@@ -110,7 +120,10 @@ mod PrivateVoting {
 
     #[constructor]
     fn constructor(
-        ref self: ContractState, verifier: ContractAddress, admin: ContractAddress, vv_coin: ContractAddress,
+        ref self: ContractState,
+        verifier: ContractAddress,
+        admin: ContractAddress,
+        vv_coin: ContractAddress,
     ) {
         self.verifier.write(verifier);
         self.admin.write(admin);
@@ -180,6 +193,21 @@ mod PrivateVoting {
     }
 
     #[external(v0)]
+    fn set_verifier(ref self: ContractState, new_verifier: ContractAddress) {
+        assert_admin(@self);
+        let old_verifier = self.verifier.read();
+        self.verifier.write(new_verifier);
+        self.emit(VerifierUpdated { old_verifier, new_verifier });
+    }
+
+    #[external(v0)]
+    fn upgrade(ref self: ContractState, new_class_hash: ClassHash) {
+        assert_admin(@self);
+        replace_class_syscall(new_class_hash).unwrap_syscall();
+        self.emit(Upgraded { new_class_hash });
+    }
+
+    #[external(v0)]
     fn create_proposal(ref self: ContractState, title: felt252, deadline: u64) -> u64 {
         assert_admin(@self);
         let now = get_block_timestamp();
@@ -222,10 +250,7 @@ mod PrivateVoting {
         assert(weight > 0, 'INVALID_WEIGHT');
         assert(nullifier_hash != 0, 'INVALID_NULLIFIER');
         assert(proof.len() > 0, 'MISSING_PROOF');
-        assert(
-            !self.proposal_used_nullifier.read((proposal_id, nullifier_hash)),
-            'NULLIFIER_USED',
-        );
+        assert(!self.proposal_used_nullifier.read((proposal_id, nullifier_hash)), 'NULLIFIER_USED');
 
         let mut public_inputs = array![];
         public_inputs.append(self.election_id.read());
@@ -235,7 +260,7 @@ mod PrivateVoting {
             public_inputs.append(1);
         } else {
             public_inputs.append(0);
-        };
+        }
         public_inputs.append(weight.into());
         public_inputs.append(nullifier_hash);
 
@@ -331,6 +356,11 @@ mod PrivateVoting {
     #[external(v0)]
     fn get_admin(self: @ContractState) -> ContractAddress {
         self.admin.read()
+    }
+
+    #[external(v0)]
+    fn get_verifier(self: @ContractState) -> ContractAddress {
+        self.verifier.read()
     }
 
     #[external(v0)]

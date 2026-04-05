@@ -1,4 +1,4 @@
-use dep::std::hash::pedersen_hash;
+use std::hash::pedersen_hash;
 
 // Private voting circuit in Noir.
 // This circuit proves:
@@ -43,10 +43,10 @@ fn verify_merkle_path(
 
 fn main(
     // Public inputs
-    pub election_id: Field,
-    pub merkle_root: Field,
-    pub nullifier_hash: Field,
-    pub vote_commitment: Field,
+    election_id: pub Field,
+    merkle_root: pub Field,
+    nullifier_hash: pub Field,
+    vote_commitment: pub Field,
 
     // Private witness
     identity_secret: Field,

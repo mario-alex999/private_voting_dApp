@@ -1,4 +1,4 @@
-use dep::std::hash::pedersen_hash;
+use std::hash::pedersen_hash;
 
 fn hash2(a: Field, b: Field) -> Field {
     pedersen_hash([a, b])
@@ -31,12 +31,12 @@ fn verify_merkle_path(
 
 fn main(
     // Public inputs (must match Starknet verifier input order)
-    pub election_id: Field,
-    pub merkle_root: Field,
-    pub proposal_id: Field,
-    pub support: Field,
-    pub weight: Field,
-    pub nullifier_hash: Field,
+    election_id: pub Field,
+    merkle_root: pub Field,
+    proposal_id: pub Field,
+    support: pub Field,
+    weight: pub Field,
+    nullifier_hash: pub Field,
 
     // Private witness
     identity_secret: Field,

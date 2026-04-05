@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>VoteVault Offline</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        background: radial-gradient(circle at 20% 20%, #0c1623, #05070a 60%);
+        color: #e2e8f0;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      }
+
+      .card {
+        width: min(560px, 92vw);
+        background: rgba(15, 23, 42, 0.72);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        border-radius: 16px;
+        padding: 28px;
+        box-shadow: 0 20px 45px rgba(2, 6, 23, 0.45);
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: 1.35rem;
+      }
+
+      p {
+        margin: 0;
+        line-height: 1.55;
+        color: #cbd5e1;
+      }
+
+      a {
+        display: inline-block;
+        margin-top: 16px;
+        color: #67e8f9;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="card">
+      <h1>You are offline</h1>
+      <p>
+        VoteVault is running in offline mode. You can still browse cached screens, but submitting votes
+        requires a Starknet RPC connection.
+      </p>
+      <a href="/">Try reconnecting</a>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#02040a" />
+      <stop offset="100%" stop-color="#0a1f4d" />
+    </linearGradient>
+    <linearGradient id="vStroke" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#8ef8ff" />
+      <stop offset="55%" stop-color="#4fe0ff" />
+      <stop offset="100%" stop-color="#1ab2ff" />
+    </linearGradient>
+    <filter id="glow" x="-70%" y="-70%" width="240%" height="240%">
+      <feGaussianBlur stdDeviation="6" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect width="192" height="192" rx="44" fill="url(#bg)" />
+  <circle cx="96" cy="96" r="70" fill="#0ff" fill-opacity="0.08" />
+  <circle cx="96" cy="96" r="84" fill="none" stroke="#4fe0ff" stroke-opacity="0.2" stroke-width="2" />
+
+  <g filter="url(#glow)">
+    <path
+      d="M52 50 L96 144 L140 50"
+      fill="none"
+      stroke="url(#vStroke)"
+      stroke-width="16"
+      stroke-linecap="round"
+      stroke-linejoin="round"
+    />
+  </g>
+</svg>

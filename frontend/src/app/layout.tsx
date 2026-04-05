@@ -3,22 +3,34 @@ import "./globals.css";
 import { StarknetProvider } from "~/StarknetProvider";
 import Footer from "./components/internal/Footer";
 import { Analytics } from "./components/internal/Analytics";
+import PwaBootstrap from "./components/internal/PwaBootstrap";
 
 export const metadata: Metadata = {
-  title: "Starknet Scaffold",
+  title: "VoteVault",
+  applicationName: "VoteVault",
   description:
-    "Build pixel-perfect dApps on Starknet with our modern, streamlined Starknet-Scaffold. Featuring NextJS, Starknetjs, Starknetkit, Starknet-React, and Typescript, it’s fully equipped for Scarb and Starknet Foundry contract development. Simplify your workflow and focus on innovation. Starknet scaffold is an open-source, up-to-date toolkit for building decentralized applications (dapps) on Starknet.",
+    "Private voting and DAO governance on Starknet with zero-knowledge proofs.",
+  manifest: "/manifest.json",
+  themeColor: "#05070a",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "VoteVault",
+  },
+  icons: {
+    icon: [{ url: "/icons/votevault-glowing-v-192.svg", type: "image/svg+xml" }],
+    apple: "/icons/votevault-glowing-v-192.svg",
+    shortcut: "/icons/votevault-glowing-v-192.svg",
+  },
   openGraph: {
-    title: "Starknet Scaffold",
-    description:
-      "An open-source, up-to-date toolkit for building decentralized applications (dapps) on Starknet.",
-    url: "https://app.starknetscaffold.xyz/",
+    title: "VoteVault",
+    description: "Private voting and DAO governance on Starknet with zero-knowledge proofs.",
+    url: "https://votevault-pvs.vercel.app",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Starknet Scaffold",
-    description:
-      "An open-source, up-to-date toolkit for building decentralized applications (dapps) on Starknet.",
+    title: "VoteVault",
+    description: "Private voting and DAO governance on Starknet with zero-knowledge proofs.",
   },
 };
 
@@ -31,6 +43,7 @@ export default function RootLayout({
     <html lang="en">
       <body className="font-coolvetica text-sm text-text-primary md:text-md">
         <StarknetProvider>{children}</StarknetProvider>
+        <PwaBootstrap />
         <Footer />
         <Analytics />
       </body>

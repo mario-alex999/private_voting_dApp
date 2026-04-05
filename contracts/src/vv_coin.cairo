@@ -1,8 +1,7 @@
 #[starknet::contract]
 mod VVCoin {
-    use starknet::ContractAddress;
-    use starknet::get_caller_address;
     use starknet::storage::Map;
+    use starknet::{ContractAddress, get_caller_address};
 
     #[storage]
     struct Storage {
@@ -40,7 +39,10 @@ mod VVCoin {
 
     #[constructor]
     fn constructor(
-        ref self: ContractState, admin: ContractAddress, initial_holder: ContractAddress, initial_supply: u128,
+        ref self: ContractState,
+        admin: ContractAddress,
+        initial_holder: ContractAddress,
+        initial_supply: u128,
     ) {
         self.admin.write(admin);
         self.total_supply.write(initial_supply);

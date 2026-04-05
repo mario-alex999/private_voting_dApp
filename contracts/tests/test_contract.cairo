@@ -1,23 +1,24 @@
 use core::traits::TryInto;
 use snforge_std::{
-    ContractClassTrait,
-    DeclareResult,
-    declare,
-    start_cheat_block_timestamp_global,
-    start_cheat_caller_address,
-    test_address,
+    ContractClassTrait, DeclareResult, declare, start_cheat_block_timestamp_global,
+    start_cheat_caller_address, test_address,
 };
 use starknet::ContractAddress;
 
 #[starknet::interface]
 trait IPrivateVoting<TContractState> {
     fn open_voting(
-        ref self: TContractState, election_id: felt252, merkle_root: felt252, start_time: u64, end_time: u64,
+        ref self: TContractState,
+        election_id: felt252,
+        merkle_root: felt252,
+        start_time: u64,
+        end_time: u64,
     );
     fn close_voting(ref self: TContractState);
     fn update_root(ref self: TContractState, merkle_root: felt252);
     fn set_paused(ref self: TContractState, paused: bool);
     fn rotate_admin(ref self: TContractState, new_admin: ContractAddress);
+    fn set_verifier(ref self: TContractState, new_verifier: ContractAddress);
     fn cast_vote(
         ref self: TContractState,
         nullifier_hash: felt252,
@@ -31,6 +32,7 @@ trait IPrivateVoting<TContractState> {
     fn get_voting_window(self: @TContractState) -> (u64, u64);
     fn is_paused(self: @TContractState) -> bool;
     fn get_admin(self: @TContractState) -> ContractAddress;
+    fn get_verifier(self: @TContractState) -> ContractAddress;
 
     fn create_proposal(ref self: TContractState, title: felt252, deadline: u64) -> u64;
     fn close_proposal(ref self: TContractState, proposal_id: u64);
@@ -63,7 +65,9 @@ fn deploy_mock_verifier(initial_result: bool) -> ContractAddress {
     address
 }
 
-fn deploy_vv_coin(admin: ContractAddress, initial_holder: ContractAddress, initial_supply: u128) -> ContractAddress {
+fn deploy_vv_coin(
+    admin: ContractAddress, initial_holder: ContractAddress, initial_supply: u128,
+) -> ContractAddress {
     let class = match declare("VVCoin").unwrap() {
         DeclareResult::Success(class) => class,
         DeclareResult::AlreadyDeclared(class) => class,
@@ -196,6 +200,32 @@ fn test_rotate_admin_updates_value() {
 
     voting.rotate_admin(new_admin);
     assert(voting.get_admin() == new_admin, 'ADMIN_NOT_UPDATED');
+}
+
+#[test]
+fn test_set_verifier_updates_value() {
+    let admin = test_address();
+    let verifier_a = deploy_mock_verifier(true);
+    let verifier_b = deploy_mock_verifier(false);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier_a, admin, token);
+
+    voting.set_verifier(verifier_b);
+    assert(voting.get_verifier() == verifier_b, 'VERIFIER_NOT_UPDATED');
+}
+
+#[test]
+#[should_panic(expected: ('NOT_ADMIN',))]
+fn test_set_verifier_reverts_for_non_admin() {
+    let admin = test_address();
+    let verifier_a = deploy_mock_verifier(true);
+    let verifier_b = deploy_mock_verifier(false);
+    let token = deploy_vv_coin(admin, admin, 1);
+    let voting = deploy_private_voting(verifier_a, admin, token);
+    let other: ContractAddress = 0x129.try_into().unwrap();
+
+    start_cheat_caller_address(voting.contract_address, other);
+    voting.set_verifier(verifier_b);
 }
 
 #[test]
